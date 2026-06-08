@@ -5,19 +5,17 @@ import kotlin.time.Instant
 
 
 @Serializable
-data class SmartHomeState(
-    val isSearchingShellys: Boolean = false,
-    val shellys: Map<Mac, ShellyState> = emptyMap(),
-)
-
-
-@Serializable
 sealed interface SmartHomeIntent {
     @Serializable
     data class FixShellyWebhooks(val mac: Mac) : SmartHomeIntent
 
     @Serializable
-    object StartSearchShellys : SmartHomeIntent
+    object StartSearchShellysInSubnet : SmartHomeIntent
+
+    @Serializable
+    data class RemoveShelly(val mac: Mac) : SmartHomeIntent
+
+    data class StartSearchShellys(val endpoints: Set<NetworkEndpoint>) : SmartHomeIntent
 
     @Serializable
     data class MoveTo(val mac: Mac, val pos: Position) : SmartHomeIntent
@@ -25,12 +23,12 @@ sealed interface SmartHomeIntent {
     @Serializable
     data class ShellyWebhookEvent(
         val mac: Mac,
-        val event: WebhookEventType,
+        val event: WebhookEventType.Quati,
         val timestamp: Instant,
     ) : SmartHomeIntent {
         val direction: Direction = when (event) {
-            WebhookEventType.COVER_CLOSING -> Direction.CLOSE
-            WebhookEventType.COVER_OPENING -> Direction.OPEN
+            WebhookEventType.CoverClosing -> Direction.CLOSE
+            WebhookEventType.CoverOpening -> Direction.OPEN
         }
     }
 }

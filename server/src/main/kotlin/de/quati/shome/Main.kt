@@ -2,10 +2,15 @@ package de.quati.shome
 
 import com.github.ajalt.clikt.command.SuspendingCliktCommand
 import com.github.ajalt.clikt.command.main
+import com.github.ajalt.clikt.parameters.options.convert
 import com.github.ajalt.clikt.parameters.options.default
+import com.github.ajalt.clikt.parameters.options.multiple
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.int
+import de.quati.shome.model.Host
+import de.quati.shome.model.NetworkEndpoint
 import de.quati.shome.model.ServerConfig
+import de.quati.shome.model.SmartHomeIntent
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
@@ -22,14 +27,27 @@ IP=$(ifconfig | grep 'inet ' | grep -v '127.0.0.1' | awk '{print $2}' | head -1)
 */
 
 class MainCmd : SuspendingCliktCommand() {
-    val host by option(help = "Host to listen on")
-    val port by option(help = "Port to listen on").int().default(8080)
+    private val host by option(help = "IP or hostname to listen on").convert { Host.parse(it) }
+    private val port by option(help = "Port to listen on").int().default(8080)
+    val shellySearchEndpoints by option(help = "Endpoints to search for shellys")
+        .convert { NetworkEndpoint.parse(it) }.multiple()
+
+    val serverConfigContext by lazy {
+        val ip = (host as? Host.IPv4) ?: getServerIp()
+        ServerConfig.Context.create(
+            ip = ip,
+            endpoint = NetworkEndpoint(
+                host = host ?: ip,
+                port = port
+            ),
+        )
+    }
 
     override suspend fun run() {
         embeddedServer(
             factory = io.ktor.server.cio.CIO,
             port = port,
-            host = host ?: "0.0.0.0",
+            host = serverConfigContext.serverConfig.serverEndpoint.host.toString(),
             module = { rootModule(cmd = this@MainCmd) }
         ).startSuspend(wait = true)
     }
@@ -37,17 +55,21 @@ class MainCmd : SuspendingCliktCommand() {
 
 suspend fun main(args: Array<String>) = MainCmd().main(args)
 
-fun Application.rootModule(cmd: MainCmd) {
-    val serverConfigContext = ServerConfig.create(
-        ip = getServerIp(),
-        host = cmd.host,
-        port = cmd.port,
-    ).let(ServerConfig::ContextImpl)
+suspend fun Application.rootModule(cmd: MainCmd) {
+    val serverConfigContext = cmd.serverConfigContext
     val shellyService = ShellyService(serverConfigContext = serverConfigContext)
-    val stateService = StateService(shellyService = shellyService)
+    val stateService = StateService(
+        app = this,
+        serverConfigContext = serverConfigContext,
+        shellyService = shellyService,
+    )
 
     install(ContentNegotiation) {
         json()
     }
     addController(stateService = stateService)
+
+    cmd.shellySearchEndpoints.toSet().takeIf { it.isNotEmpty() }?.also {
+        stateService.onIntent(SmartHomeIntent.StartSearchShellys(it))
+    }
 }

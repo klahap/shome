@@ -1,14 +1,94 @@
 package de.quati.shome.model
 
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 import kotlin.jvm.JvmInline
 import kotlin.math.absoluteValue
 
 
-@JvmInline
 @Serializable
-value class Ip(val value: String) {
-    override fun toString() = value
+enum class ShellyRpcMethod {
+    @SerialName("Cover.Open")
+    COVER_OPEN,
+
+    @SerialName("Cover.Close")
+    COVER_CLOSE,
+
+    @SerialName("Webhook.List")
+    WEBHOOK_LIST,
+
+    @SerialName("Webhook.Delete")
+    WEBHOOK_DELETE,
+
+    @SerialName("Webhook.Create")
+    WEBHOOK_CREATE,
+
+    @SerialName("KVS.Set")
+    KVS_SET,
+
+    @SerialName("KVS.GetMany")
+    KVS_GET_MANY,
+
+    @SerialName("Shelly.GetConfig")
+    SHELLY_GET_CONFIG,
+
+    @SerialName("Shelly.GetStatus")
+    SHELLY_GET_STATUS,
+}
+
+@Serializable(with = Host.Serializer::class)
+sealed interface Host {
+    @Serializable
+    data class IPv4(val a: UByte, val b: UByte, val c: UByte, val d: UByte) : Host {
+        override fun toString() = "$a.$b.$c.$d"
+    }
+
+    @JvmInline
+    value class Hostname(val value: String) : Host {
+        override fun toString() = value
+    }
+
+    object Serializer : KSerializer<Host> {
+        override val descriptor = PrimitiveSerialDescriptor("Host", PrimitiveKind.STRING)
+        override fun deserialize(decoder: Decoder): Host = parse(decoder.decodeString())
+        override fun serialize(encoder: Encoder, value: Host) = encoder.encodeString(value.toString())
+    }
+
+    companion object {
+        fun parse(raw: String): Host = raw.split(".")
+            .map { it.toUByteOrNull() }
+            .takeIf { parts -> parts.size == 4 && parts.all { it != null } }
+            ?.filterNotNull()
+            ?.let { (a, b, c, d) -> IPv4(a, b, c, d) }
+            ?: Hostname(raw)
+    }
+}
+
+@Serializable
+data class NetworkEndpoint(
+    val host: Host,
+    val port: Int?,
+) {
+    override fun toString() = host.toString() + port?.let { ":$it" }.orEmpty()
+
+    companion object {
+        fun parse(raw: String): NetworkEndpoint = if (':' in raw)
+            NetworkEndpoint(
+                host = Host.parse(raw.substringBeforeLast(":")),
+                port = raw.substringAfterLast(':').toIntOrNull()
+                    ?: error("invalid port: ${raw.substringAfterLast(':')}")
+            )
+        else NetworkEndpoint(
+            host = Host.parse(raw),
+            port = null,
+        )
+    }
 }
 
 @JvmInline
@@ -45,7 +125,7 @@ value class Position(val value: Double) {
     }
 
     fun isApprox(other: Position) = (value - other.value).absoluteValue < 0.01
-    fun isApproxEnd() = isApprox(Position.CLOSED) || isApprox(Position.OPENED)
+    fun isApproxEnd() = isApprox(CLOSED) || isApprox(OPENED)
 
     fun computeOutOfBoundsDistance(distance: Distance): Double {
         val x = value + distance.value
@@ -71,6 +151,12 @@ enum class Direction {
             OPEN -> CLOSE
         }
 
+    val lastDirectionValue
+        get() = when (this) {
+            CLOSE -> "close"
+            OPEN -> "open"
+        }
+
     val endPosition
         get() = when (this) {
             CLOSE -> Position.CLOSED
@@ -84,18 +170,60 @@ enum class Direction {
         }
 }
 
-enum class WebhookEventType(val value: String) {
-    COVER_OPENING("cover.opening"),
-    COVER_CLOSING("cover.closing");
+
+@Serializable(with = WebhookEventType.Serializer::class)
+sealed interface WebhookEventType {
+
+    @Serializable(with = SerializerQuati::class)
+    sealed interface Quati : WebhookEventType
+
+    val value: String
+
+    data object CoverOpening : Quati {
+        override val value = "cover.opening"
+        val direction = Direction.OPEN
+    }
+
+    data object CoverClosing : Quati {
+        override val value = "cover.closing"
+        val direction = Direction.CLOSE
+    }
+
+    data class Unknown(override val value: String) : WebhookEventType
 
     val urlName get() = value.replace('.', '_')
     val prettyName get() = NAME_PREFIX + urlName
 
     companion object {
+        val entries = listOf(CoverOpening, CoverClosing)
         const val NAME_PREFIX = "quati_"
         const val QUERY_KEY_MAC = "mac"
         const val QUERY_KEY_EVENT = "event"
 
-        fun parseUrlName(value: String): WebhookEventType? = entries.find { it.urlName == value }
+        fun parseUrlName(value: String): Quati? = entries.find { it.urlName == value }
+    }
+
+    object Serializer : KSerializer<WebhookEventType> {
+        override val descriptor = PrimitiveSerialDescriptor("WebhookEventType", PrimitiveKind.STRING)
+        override fun serialize(encoder: Encoder, value: WebhookEventType) {
+            encoder.encodeString(value.value)
+        }
+
+        override fun deserialize(decoder: Decoder): WebhookEventType {
+            val v = decoder.decodeString()
+            return entries.find { it.value == v } ?: Unknown(v)
+        }
+    }
+
+    object SerializerQuati : KSerializer<Quati> {
+        override val descriptor = PrimitiveSerialDescriptor("WebhookEventType", PrimitiveKind.STRING)
+        override fun serialize(encoder: Encoder, value: Quati) {
+            encoder.encodeString(value.value)
+        }
+
+        override fun deserialize(decoder: Decoder): Quati {
+            val v = decoder.decodeString()
+            return entries.find { it.value == v } ?: throw SerializationException("Unknown Quati event type: $v")
+        }
     }
 }
