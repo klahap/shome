@@ -8,6 +8,7 @@ import de.quati.shome.model.ShellyState
 import de.quati.shome.model.BackendIntent
 import de.quati.shome.model.BackendState
 import de.quati.shome.model.ShellyIntent
+import de.quati.shome.model.ShellyRpcRequest
 import io.ktor.server.application.Application
 import io.ktor.server.application.log
 import kotlinx.coroutines.delay
@@ -27,13 +28,15 @@ class BackendStateService(
         field = MutableStateFlow(BackendState())
 
     suspend fun onIntent(intent: BackendIntent): Any = when (intent) {
-        BackendIntent.StartSearchShellysInSubnet -> searchShellys()
-        is BackendIntent.StartSearchShellys -> searchShellys(intent.endpoints)
+        BackendIntent.StartSearchShellysInSubnet -> reloadShellys()
+        is BackendIntent.StartSearchShellys -> reloadShellys(intent.endpoints)
         is BackendIntent.Shelly -> when (val sIntent = intent.intent) {
             ShellyIntent.Delete -> state.update { s -> s.copy(shellys = s.shellys - intent.mac) }
             ShellyIntent.FixWebhooks -> fixShellyWebhooks(intent.mac)
             is ShellyIntent.MoveTo -> moveTo(mac = intent.mac, pos = sIntent.pos)
             is ShellyIntent.WebhookEventReceived -> updateShellyState(intent.mac) { it.update(sIntent) }
+            is ShellyIntent.SetDurations -> setDurations(intent.mac, sIntent)
+            is ShellyIntent.SetConfig -> setConfig(intent.mac, sIntent)
         }
     }.also {
         app.log.info("finished onIntent: $intent")
@@ -66,14 +69,35 @@ class BackendStateService(
     }
 
     private suspend fun fixShellyWebhooks(mac: Mac) {
-        val ip = state.value.shellys[mac]?.endpoint ?: return
+        val ip = mac.ipOrNull ?: return
         shellyService.fixWebhooks(ip)
-        updateInvalidInfo(mac) { info ->
-            info.copy(webhooksValid = true)
-        }
+        reloadShellys(endpoints = setOf(ip))
     }
 
-    private suspend fun searchShellys(
+    private suspend fun setConfig(mac: Mac, intent: ShellyIntent.SetConfig) {
+        val ip = mac.ipOrNull ?: return
+        shellyService.setConfig(
+            ip = ip,
+            entry = ShellyRpcRequest.Params.SetConfig(
+                ShellyRpcRequest.Params.SetConfig.Config(
+                    device = ShellyRpcRequest.Params.SetConfig.Config.Device(
+                        name = intent.name
+                    )
+                )
+            )
+        )
+        reloadShellys(endpoints = setOf(ip))
+    }
+
+    private suspend fun setDurations(mac: Mac, intent: ShellyIntent.SetDurations) {
+        val ip = mac.ipOrNull ?: return
+        intent.kvsEntries.forEach { entry ->
+            shellyService.setKvs(ip, entry)
+        }
+        reloadShellys(endpoints = setOf(ip))
+    }
+
+    private suspend fun reloadShellys(
         endpoints: Set<NetworkEndpoint> = getSubnetEndpoints(),
     ) {
         val stateBefore = state.getAndUpdate { it.copy(shellySearchState = BackendState.ShellySearchState.Searching) }
@@ -94,7 +118,7 @@ class BackendStateService(
                 ),
             )
         }
-        app.log.info("${newShellyStates.size} shellys found")
+        app.log.info("${newShellyStates.size} shellys updated")
     }
 
     private fun updateShellyState(mac: Mac, block: (ShellyState) -> ShellyState) = state.update { backendState ->
@@ -102,9 +126,6 @@ class BackendStateService(
         val newState = block(state)
         backendState.copy(shellys = backendState.shellys + (mac to newState))
     }
-
-    private fun updateInvalidInfo(mac: Mac, block: (ShellyState.Invalid) -> ShellyState) =
-        updateShellyState(mac) { it.updateInvalid(block) }
 
     private fun getSubnetEndpoints(): Set<NetworkEndpoint> {
         val serverIp = backendConfig.backendIPv4
@@ -114,4 +135,6 @@ class BackendStateService(
             NetworkEndpoint(host = ip, port = null)
         }.toSet()
     }
+
+    private val Mac.ipOrNull get() = state.value.shellys[this]?.endpoint
 }

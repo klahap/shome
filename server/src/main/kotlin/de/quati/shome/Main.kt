@@ -3,10 +3,8 @@ package de.quati.shome
 import com.github.ajalt.clikt.command.SuspendingCliktCommand
 import com.github.ajalt.clikt.command.main
 import com.github.ajalt.clikt.parameters.options.convert
-import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.multiple
 import com.github.ajalt.clikt.parameters.options.option
-import com.github.ajalt.clikt.parameters.types.int
 import de.quati.shome.model.Host
 import de.quati.shome.model.NetworkEndpoint
 import de.quati.shome.model.BackendConfig
@@ -28,7 +26,6 @@ IP=$(ifconfig | grep 'inet ' | grep -v '127.0.0.1' | awk '{print $2}' | head -1)
 
 class MainCmd : SuspendingCliktCommand() {
     private val host by option(help = "IP or hostname to listen on").convert { Host.parse(it) }
-    private val port by option(help = "Port to listen on").int().default(8080)
     val shellySearchEndpoints by option(help = "Endpoints to search for shellys")
         .convert { NetworkEndpoint.parse(it) }.multiple()
 
@@ -38,7 +35,7 @@ class MainCmd : SuspendingCliktCommand() {
             ip = ip,
             endpoint = NetworkEndpoint(
                 host = host ?: ip,
-                port = port
+                port = Const.BACKEND_PORT
             ),
         )
     }
@@ -46,7 +43,7 @@ class MainCmd : SuspendingCliktCommand() {
     override suspend fun run() {
         embeddedServer(
             factory = io.ktor.server.cio.CIO,
-            port = port,
+            port = Const.BACKEND_PORT,
             host = backendConfigContext.backendConfig.backendEndpoint.host.toString(),
             module = { rootModule(cmd = this@MainCmd) }
         ).startSuspend(wait = true)

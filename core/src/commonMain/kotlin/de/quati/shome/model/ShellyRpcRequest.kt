@@ -24,7 +24,7 @@ data class ShellyRpcRequest(
         ) = ShellyRpcRequest(
             id = id,
             method = method,
-            params = params?.let { json.encodeToJsonElement(it) } ,
+            params = params?.let { json.encodeToJsonElement(it) },
         )
 
     }
@@ -73,6 +73,21 @@ data class ShellyRpcRequest(
                         Direction.CLOSE -> KEY_TOTAL_MS_CLOSE
                     },
                     value = JsonPrimitive(duration.inWholeMilliseconds),
+                )
+            }
+        }
+
+        @Serializable
+        data class SetConfig(
+            val config: Config
+        ) : Params {
+            @Serializable
+            data class Config(
+                val device: Device
+            ) {
+                @Serializable
+                data class Device(
+                    val name: String
                 )
             }
         }

@@ -6,6 +6,7 @@ import de.quati.shome.model.BackendState
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.plugins.resources.Resources
 import io.ktor.client.plugins.resources.post
 import io.ktor.client.plugins.resources.prepareGet
@@ -23,6 +24,10 @@ class BackendClient {
     private val httpClient: HttpClient = HttpClient(CIO) {
         install(Resources)
         install(ContentNegotiation) { json(json) }
+        defaultRequest {
+            host = "localhost"
+            port = Const.BACKEND_PORT
+        }
     }
 
     fun getStateFlow() = flow {

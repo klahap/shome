@@ -40,6 +40,9 @@ enum class ShellyRpcMethod {
 
     @SerialName("Shelly.GetStatus")
     SHELLY_GET_STATUS,
+
+    @SerialName("Sys.SetConfig")
+    SYS_SET_CONFIG,
 }
 
 @Serializable(with = Host.Serializer::class)

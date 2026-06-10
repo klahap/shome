@@ -58,6 +58,12 @@ class ShellyService(
         params = entry,
     )
 
+    suspend fun setConfig(ip: NetworkEndpoint, entry: ShellyRpcRequest.Params.SetConfig) = request(
+        ip = ip,
+        met = ShellyRpcMethod.SYS_SET_CONFIG,
+        params = entry,
+    )
+
     suspend fun deleteWebhook(ip: NetworkEndpoint, webhookId: Int) = request(
         ip = ip,
         met = ShellyRpcMethod.WEBHOOK_DELETE,

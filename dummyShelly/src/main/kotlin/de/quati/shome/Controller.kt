@@ -106,6 +106,22 @@ class Helper(
                 )
             }.let { ShellyRpcResponse.create(params = it) }
 
+    fun setConfig(config: ShellyRpcRequest.Params.SetConfig): ShellyRpcResponse {
+        state.update { s ->
+            s.copy(
+                config = s.config.copy(
+                    sys = s.config.sys?.copy(
+                        device = s.config.sys?.device?.copy(
+                            name = config.config.device.name
+                        )
+                    )
+                )
+            )
+        }
+        app.log.info("Set config: $config")
+        return ShellyRpcResponse()
+    }
+
     suspend fun coverMoving(eventType: WebhookEventType.Quati): ShellyRpcResponse {
         state.value.webhooks
             .filter { it.enable && it.event == eventType }
@@ -147,6 +163,7 @@ fun Application.addController(mac: Mac) {
                 ShellyRpcMethod.KVS_GET_MANY -> helper.getManyKvs()
                 ShellyRpcMethod.SHELLY_GET_CONFIG -> helper.getConfig()
                 ShellyRpcMethod.SHELLY_GET_STATUS -> helper.getStatus()
+                ShellyRpcMethod.SYS_SET_CONFIG -> helper.setConfig(body.parse<ShellyRpcRequest.Params.SetConfig>())
             }
             call.respond(status = HttpStatusCode.OK, message = response)
             log.info("Request handled: $body")
