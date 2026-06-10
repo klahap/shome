@@ -2,8 +2,8 @@ package de.quati.shome
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import de.quati.shome.model.SmartHomeIntent
-import de.quati.shome.model.SmartHomeState
+import de.quati.shome.model.BackendIntent
+import de.quati.shome.model.BackendState
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -13,13 +13,13 @@ import kotlinx.coroutines.launch
 class AppViewModel(
     private val backendClient: BackendClient = BackendClient(),
 ) : ViewModel() {
-    val state: StateFlow<SmartHomeState> = backendClient.getStateFlow().stateIn(
+    val state: StateFlow<BackendState> = backendClient.getStateFlow().stateIn(
         scope = viewModelScope,
         started = SharingStarted.Eagerly,
-        initialValue = SmartHomeState(),
+        initialValue = BackendState(),
     )
 
-    fun sendIntent(intent: SmartHomeIntent) {
+    fun sendIntent(intent: BackendIntent) {
         viewModelScope.launch { backendClient.sendIntent(intent) }
     }
 }

@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 
 @Serializable
-data class SmartHomeState(
+data class BackendState(
     val shellySearchState: ShellySearchState = ShellySearchState.None,
     val shellys: Map<Mac, ShellyState> = emptyMap(),
 ) {

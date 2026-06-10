@@ -1,5 +1,6 @@
 package de.quati.shome.model
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -7,6 +8,7 @@ import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 @Serializable
 data class ShellyRpcResponse(
@@ -40,7 +42,7 @@ data class ShellyRpcResponse(
         data class WebhookList(
             val hooks: List<Webhook>
         ) : Params {
-            context(_: ServerConfig.Context)
+            context(_: BackendConfig.Context)
             fun isValid(): Boolean {
                 val validTypes = hooks
                     .filter { it.isQuatiWebhook }
@@ -62,15 +64,65 @@ data class ShellyRpcResponse(
         ) {
             val isQuatiWebhook get() = name?.startsWith(WebhookEventType.NAME_PREFIX) ?: false
 
-            context(c: ServerConfig.Context)
+            context(c: BackendConfig.Context)
             fun validQuatiType(): WebhookEventType? {
                 if (!enable) return null
                 if (event.prettyName != name) return null
                 val expectedUrls = listOf(
-                    c.serverConfig.webhookUrl(type = event)
+                    c.backendConfig.webhookUrl(type = event)
                 )
                 if (urls != expectedUrls) return null
                 return event
+            }
+        }
+
+        @Serializable
+        data class ShellyStatus(
+            @SerialName("cover:0") val cover0: Cover0? = null,
+            val sys: Sys? = null,
+        ) : Params {
+            @Serializable
+            data class Cover0(
+                @SerialName("last_direction") val lastDirection: String? = null
+            ) {
+                val lastDirectionTyped
+                    get() = Direction.entries.firstOrNull { it.lastDirectionValue == lastDirection }
+
+            }
+
+            @Serializable
+            data class Sys(
+                val mac: Mac? = null,
+                @SerialName("restart_required") val restartRequired: Boolean? = null
+            )
+        }
+
+        @Serializable
+        data class ShellyConfig(
+            @SerialName("cover:0") val cover0: Cover0? = null,
+            val sys: Sys? = null,
+        ) : Params {
+            @Serializable
+            data class Cover0(
+                @SerialName("maxtime_open") val maxtimeOpen: Double,
+                @SerialName("maxtime_close") val maxtimeClose: Double,
+                @SerialName("swap_inputs") val swapInputs: Boolean? = null,
+                @SerialName("invert_directions") val invertDirections: Boolean,
+            ) {
+                val maxtimeOpenDuration get() = maxtimeOpen.seconds
+                val maxtimeCloseDuration get() = maxtimeClose.seconds
+            }
+
+            @Serializable
+            data class Sys(
+                val device: Device? = null,
+            ) {
+                @Serializable
+                data class Device(
+                    @SerialName("name") val name: String? = null,
+                    @SerialName("mac") val mac: Mac? = null,
+                    @SerialName("profile") val profile: String? = null,
+                )
             }
         }
     }

@@ -2,11 +2,7 @@ package de.quati.shome
 
 import de.quati.shome.model.Direction
 import de.quati.shome.model.NetworkEndpoint
-import de.quati.shome.model.ShellyConfig
-import de.quati.shome.model.ShellyEvent
-import de.quati.shome.model.ShellyInfo
 import de.quati.shome.model.ShellyState
-import de.quati.shome.model.ShellyStatus
 import de.quati.shome.model.WebhookEventType
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
@@ -18,7 +14,7 @@ import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
-import de.quati.shome.model.ServerConfig
+import de.quati.shome.model.BackendConfig
 import de.quati.shome.model.ShellyRpcMethod
 import de.quati.shome.model.ShellyRpcRequest
 import de.quati.shome.model.ShellyRpcResponse
@@ -36,8 +32,8 @@ import kotlinx.serialization.json.decodeFromJsonElement
 
 
 class ShellyService(
-    serverConfigContext: ServerConfig.Context
-) : ServerConfig.Context by serverConfigContext {
+    backendConfigContext: BackendConfig.Context
+) : BackendConfig.Context by backendConfigContext {
     private val json = Json { ignoreUnknownKeys = true }
     private val httpClient = HttpClient(CIO) {
         install(ContentNegotiation) { json(json) }
@@ -48,10 +44,10 @@ class ShellyService(
     }
 
     suspend fun getConfig(endpoint: NetworkEndpoint) =
-        execute<ShellyConfig>(endpoint = endpoint, method = ShellyRpcMethod.SHELLY_GET_CONFIG)
+        execute<ShellyRpcResponse.Params.ShellyConfig>(endpoint = endpoint, method = ShellyRpcMethod.SHELLY_GET_CONFIG)
 
     suspend fun getStatus(endpoint: NetworkEndpoint) =
-        execute<ShellyStatus>(endpoint = endpoint, method = ShellyRpcMethod.SHELLY_GET_STATUS)
+        execute<ShellyRpcResponse.Params.ShellyStatus>(endpoint = endpoint, method = ShellyRpcMethod.SHELLY_GET_STATUS)
 
     suspend fun getManyKvs(endpoint: NetworkEndpoint) =
         execute<ShellyRpcResponse.Params.KvsGetMany>(endpoint = endpoint, method = ShellyRpcMethod.KVS_GET_MANY)
@@ -78,7 +74,7 @@ class ShellyService(
             enable = true,
             event = eventType,
             name = eventType.prettyName,
-            urls = listOf(serverConfig.webhookUrl(eventType)),
+            urls = listOf(backendConfig.webhookUrl(eventType)),
         ),
     )
 
@@ -116,7 +112,7 @@ class ShellyService(
         val config = getConfig(ip).getOrNull() ?: return null
         val kvs = getManyKvs(ip).getOrNull() ?: return null
         val webhooks = listWebhooks(ip).getOrNull() ?: return null
-        val info = ShellyInfo.Invalid(
+        val info = ShellyState.Invalid(
             endpoint = ip,
             mac = status.sys?.mac ?: return null,
             name = config.sys?.device?.name,
@@ -124,12 +120,10 @@ class ShellyService(
             webhooksValid = webhooks.isValid(),
             totalDurationClose = kvs.totalDuration(Direction.CLOSE),
             totalDurationOpen = kvs.totalDuration(Direction.OPEN),
+            latestEvent = null,
+            latestDirection = status.cover0?.lastDirectionTyped,
         ).tryToValid()
-        val event = ShellyEvent(latestDirection = status.cover0?.lastDirectionTyped ?: Direction.OPEN)
-        return ShellyState(
-            info = info,
-            latestEvent = event,
-        )
+        return info
     }
 
     suspend fun findAllShellys(endpoints: Set<NetworkEndpoint>) = coroutineScope {

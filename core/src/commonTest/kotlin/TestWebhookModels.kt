@@ -1,5 +1,5 @@
 import de.quati.shome.model.NetworkEndpoint
-import de.quati.shome.model.ServerConfig
+import de.quati.shome.model.BackendConfig
 import de.quati.shome.model.ShellyRpcResponse
 import de.quati.shome.model.WebhookEventType.Companion.QUERY_KEY_EVENT
 import de.quati.shome.model.WebhookEventType.Companion.QUERY_KEY_MAC
@@ -7,13 +7,13 @@ import io.kotest.matchers.shouldBe
 import kotlin.test.Test
 
 class TestWebhookModels : TestModels() {
-    val serverConfig = ServerConfig.create(ip = NetworkEndpoint(HOST), host = null, port = PORT)
-        .let(ServerConfig::ContextImpl)
+    val backendConfig = BackendConfig.create(ip = NetworkEndpoint(HOST), host = null, port = PORT)
+        .let(BackendConfig::ContextImpl)
 
     @Test
     fun testWebhookModels() {
         val result = json.decodeFromString<ShellyRpcResponse.Params.WebhookList>(params0)
-        with(serverConfig) {
+        with(backendConfig) {
             result.isValid() shouldBe true
         }
     }

@@ -1,8 +1,8 @@
 package de.quati.shome
 
 import de.quati.shome.api.Api
-import de.quati.shome.model.SmartHomeIntent
-import de.quati.shome.model.SmartHomeState
+import de.quati.shome.model.BackendIntent
+import de.quati.shome.model.BackendState
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -30,13 +30,13 @@ class BackendClient {
             val channel = response.bodyAsChannel()
             while (!channel.isClosedForRead) {
                 val line = channel.readLine() ?: break
-                val state = json.decodeFromString<SmartHomeState>(line)
+                val state = json.decodeFromString<BackendState>(line)
                 emit(state)
             }
         }
     }
 
-    suspend fun sendIntent(intent: SmartHomeIntent) {
+    suspend fun sendIntent(intent: BackendIntent) {
         val res = httpClient.post(Api.Intent()) {
             setBody(intent)
         }

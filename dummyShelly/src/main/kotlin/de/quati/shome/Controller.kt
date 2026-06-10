@@ -1,11 +1,9 @@
 package de.quati.shome
 
 import de.quati.shome.model.Mac
-import de.quati.shome.model.ShellyConfig
 import de.quati.shome.model.ShellyRpcMethod
 import de.quati.shome.model.ShellyRpcRequest
 import de.quati.shome.model.ShellyRpcResponse
-import de.quati.shome.model.ShellyStatus
 import de.quati.shome.model.WebhookEventType
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
@@ -28,26 +26,26 @@ data class State(
     val deviceName: String? = null,
     val webhooks: List<ShellyRpcResponse.Params.Webhook> = emptyList(),
     val kvs: Map<String, JsonElement> = emptyMap(),
-    val config: ShellyConfig = ShellyConfig(
-        cover0 = ShellyConfig.Cover0(
+    val config: ShellyRpcResponse.Params.ShellyConfig = ShellyRpcResponse.Params.ShellyConfig(
+        cover0 = ShellyRpcResponse.Params.ShellyConfig.Cover0(
             maxtimeOpen = 0.5,
             maxtimeClose = 0.5,
             swapInputs = false,
             invertDirections = false,
         ),
-        sys = ShellyConfig.Sys(
-            device = ShellyConfig.Sys.Device(
+        sys = ShellyRpcResponse.Params.ShellyConfig.Sys(
+            device = ShellyRpcResponse.Params.ShellyConfig.Sys.Device(
                 name = null,
                 mac = mac,
                 profile = "cover",
             ),
         )
     ),
-    val status: ShellyStatus = ShellyStatus(
-        cover0 = ShellyStatus.Cover0(
+    val status: ShellyRpcResponse.Params.ShellyStatus = ShellyRpcResponse.Params.ShellyStatus(
+        cover0 = ShellyRpcResponse.Params.ShellyStatus.Cover0(
             lastDirection = null
         ),
-        sys = ShellyStatus.Sys(
+        sys = ShellyRpcResponse.Params.ShellyStatus.Sys(
             mac = mac,
             restartRequired = false,
         )

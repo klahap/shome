@@ -1,7 +1,8 @@
 package de.quati.shome
 
 import de.quati.shome.model.Mac
-import de.quati.shome.model.SmartHomeIntent
+import de.quati.shome.model.BackendIntent
+import de.quati.shome.model.ShellyIntent
 import de.quati.shome.model.WebhookEventType
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
@@ -19,7 +20,7 @@ import kotlinx.serialization.json.Json
 import kotlin.time.Clock
 
 
-fun Application.addController(stateService: StateService) {
+fun Application.addController(backendStateService: BackendStateService) {
     val ndJsonContentType = ContentType.parse("application/x-ndjson")
     routing {
         staticResources(
@@ -30,7 +31,7 @@ fun Application.addController(stateService: StateService) {
 
         get("/api/state") {
             call.respondBytesWriter(contentType = ndJsonContentType) {
-                stateService.state.collect { state ->
+                backendStateService.state.collect { state ->
                     val json = Json.encodeToString(state)
                     writeStringUtf8(json + "\n")
                     flush()
@@ -40,7 +41,7 @@ fun Application.addController(stateService: StateService) {
 
         post("/api/intent") {
             val intent = try {
-                call.receive<SmartHomeIntent>()
+                call.receive<BackendIntent>()
             } catch (e: Exception) {
                 log.warn("Failed to receive intent: ${e.message}")
                 call.respond(HttpStatusCode.BadRequest)
@@ -48,7 +49,7 @@ fun Application.addController(stateService: StateService) {
             }
             log.info("Received intent: $intent")
             try {
-                stateService.onIntent(intent)
+                backendStateService.onIntent(intent)
             } catch (e: Exception) {
                 log.error("Failed to process intent: $intent, error: ${e.message}")
                 call.respond(HttpStatusCode.InternalServerError)
@@ -66,13 +67,15 @@ fun Application.addController(stateService: StateService) {
                 ?.let(WebhookEventType::parseUrlName)
                 ?: return@get log.warn("Missing event parameter in webhook request form MAC: $mac")
             log.info("Webhook received form MAC: $mac, Event: $event")
-            val intent = SmartHomeIntent.ShellyWebhookEvent(
+            val intent = BackendIntent.Shelly(
                 mac = mac,
-                event = event,
-                timestamp = Clock.System.now(),
+                intent = ShellyIntent.WebhookEventReceived(
+                    event = event,
+                    timestamp = Clock.System.now(),
+                ),
             )
             try {
-                stateService.onIntent(intent)
+                backendStateService.onIntent(intent)
             } catch (e: Exception) {
                 log.error("Failed to process webhook for MAC: $mac, Event: $event", e)
             }
