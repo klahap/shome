@@ -122,7 +122,7 @@ class ShellyService(
             endpoint = ip,
             mac = status.sys?.mac ?: return null,
             name = config.sys?.device?.name,
-            profile = config.sys?.device?.profile ?: return null,
+            isCoverProfile = config.sys?.device?.profile == "cover",
             webhooksValid = webhooks.isValid(),
             totalDurationClose = kvs.totalDuration(Direction.CLOSE),
             totalDurationOpen = kvs.totalDuration(Direction.OPEN),
@@ -160,20 +160,22 @@ class ShellyService(
         ip: NetworkEndpoint,
         met: ShellyRpcMethod,
         params: P?,
-    ) = httpClient.post("http://$ip/rpc") {
-        contentType(ContentType.Application.Json)
-        setBody(
-            ShellyRpcRequest.create(
-                id = 1,
-                method = met,
-                params = params
+    ) = runCatching {
+        httpClient.post("http://$ip/rpc") {
+            contentType(ContentType.Application.Json)
+            setBody(
+                ShellyRpcRequest.create(
+                    id = 1,
+                    method = met,
+                    params = params
+                )
             )
-        )
-    }.let {
+        }
+    }.mapCatching {
         if (it.status.isSuccess())
-            Result.success(it)
+            it
         else
-            Result.failure(Exception(it.bodyAsText().takeIf { it.isNotBlank() } ?: "Unknown error"))
+            throw Exception(it.bodyAsText().takeIf { it.isNotBlank() } ?: "Unknown error")
     }
 
     private suspend inline fun <reified T> execute(

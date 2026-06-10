@@ -1,6 +1,8 @@
 *.iml
 .kotlin
 .gradle
+.junie
+server/src/main/resources/static/
 **/build/
 xcuserdata
 !src/**/build/

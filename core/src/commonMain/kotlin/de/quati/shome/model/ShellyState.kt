@@ -14,6 +14,8 @@ sealed interface ShellyState {
     val totalDurationClose: Duration?
     val totalDurationOpen: Duration?
     val latestEvent: Event?
+    val isCoverProfile: Boolean
+    val webhooksValid: Boolean
 
     fun update(newState: ShellyState?): ShellyState {
         if (newState == null) return this
@@ -58,6 +60,9 @@ sealed interface ShellyState {
         override val totalDurationOpen: Duration,
         override val latestEvent: Event,
     ) : ShellyState {
+        override val isCoverProfile: Boolean = true
+        override val webhooksValid: Boolean = true
+
         fun totalDuration(direction: Direction) = when (direction) {
             Direction.CLOSE -> totalDurationClose
             Direction.OPEN -> totalDurationOpen
@@ -73,7 +78,7 @@ sealed interface ShellyState {
         fun update(
             newTimeStamp: Instant,
         ): Valid {
-            if (latestEvent.direction == null) // stopped -> start driving
+            if (latestEvent.direction == null) // stopped
                 return copy(latestEvent = latestEvent.copy(timeStamp = newTimeStamp))
 
             val distance = computeDistance(
@@ -133,11 +138,11 @@ sealed interface ShellyState {
         override val totalDurationOpen: Duration?,
         val latestDirection: Direction?,
         override val latestEvent: Event?,
-        val profile: String,
-        val webhooksValid: Boolean,
+        override val isCoverProfile: Boolean,
+        override val webhooksValid: Boolean,
     ) : ShellyState {
         fun toValidOrNull(): Valid? {
-            if (profile != "cover") return null
+            if (!isCoverProfile) return null
             if (!webhooksValid) return null
             return Valid(
                 endpoint = endpoint,

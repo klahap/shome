@@ -27,6 +27,7 @@ dependencies {
     implementation(libs.ktor.server.core)
     implementation(libs.ktor.server.cio)
     implementation(libs.ktor.server.contentNegotiation)
+    implementation(libs.ktor.server.cors)
     implementation(libs.ktor.client.cio)
     implementation(libs.ktor.client.contentNegotiation)
     implementation(libs.ktor.client.core)
@@ -34,4 +35,8 @@ dependencies {
     implementation(libs.kotlinx.serialization)
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.kotlin.testJunit)
+}
+
+tasks.named("processResources") {
+    dependsOn(":app:webApp:copyWasmDistributionDev")
 }

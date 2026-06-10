@@ -3,6 +3,7 @@ package de.quati.shome
 import com.github.ajalt.clikt.command.SuspendingCliktCommand
 import com.github.ajalt.clikt.command.main
 import com.github.ajalt.clikt.parameters.options.default
+import com.github.ajalt.clikt.parameters.options.multiple
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.int
 import de.quati.shome.model.Mac
@@ -11,6 +12,7 @@ import io.ktor.server.application.Application
 import io.ktor.server.application.install
 import io.ktor.server.engine.*
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
+import kotlinx.coroutines.awaitCancellation
 
 /*
 
@@ -23,23 +25,24 @@ IP=$(ifconfig | grep 'inet ' | grep -v '127.0.0.1' | awk '{print $2}' | head -1)
 
 class MainCmd : SuspendingCliktCommand() {
     val host by option(help = "Host to listen on")
-    val port by option(help = "Port to listen on").int().default(8085)
-    val mac by option(help = "MAC id")
-    val macValue get() = Mac(mac ?: "mac-$port")
+    val ports by option(help = "Ports to listen on").int().multiple(required = true)
 
     override suspend fun run() {
-        embeddedServer(
-            factory = io.ktor.server.cio.CIO,
-            port = port,
-            host = host ?: "0.0.0.0",
-            module = { rootModule(cmd = this@MainCmd) }
-        ).startSuspend(wait = true)
+        ports.distinct().forEach { port ->
+            embeddedServer(
+                factory = io.ktor.server.cio.CIO,
+                port = port,
+                host = host ?: "0.0.0.0",
+                module = { rootModule(mac = Mac("mac-$port")) }
+            ).startSuspend(wait = false)
+        }
+        awaitCancellation()
     }
 }
 
 suspend fun main(args: Array<String>) = MainCmd().main(args)
 
-fun Application.rootModule(cmd: MainCmd) {
+fun Application.rootModule(mac: Mac) {
     install(ContentNegotiation) { json() }
-    addController(mac = cmd.macValue)
+    addController(mac = mac)
 }

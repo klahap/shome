@@ -14,6 +14,9 @@ import io.ktor.server.application.Application
 import io.ktor.server.application.install
 import io.ktor.server.engine.*
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.server.plugins.cors.routing.*
+import io.ktor.http.*
+import io.ktor.server.application.log
 
 /*
 
@@ -44,8 +47,11 @@ class MainCmd : SuspendingCliktCommand() {
         embeddedServer(
             factory = io.ktor.server.cio.CIO,
             port = Const.BACKEND_PORT,
-            host = backendConfigContext.backendConfig.backendEndpoint.host.toString(),
-            module = { rootModule(cmd = this@MainCmd) }
+            host = "0.0.0.0",
+            module = {
+                rootModule(cmd = this@MainCmd)
+                log.info("Responding at http://${backendConfigContext.backendConfig.backendEndpoint}")
+            }
         ).startSuspend(wait = true)
     }
 }
@@ -63,6 +69,14 @@ suspend fun Application.rootModule(cmd: MainCmd) {
 
     install(ContentNegotiation) {
         json()
+    }
+    install(CORS) {
+        anyHost()
+        HttpMethod.DefaultMethods.forEach {
+            allowMethod(it)
+        }
+        allowHeader(HttpHeaders.ContentType)
+        allowHeader(HttpHeaders.Authorization)
     }
     addController(backendStateService = backendStateService)
 

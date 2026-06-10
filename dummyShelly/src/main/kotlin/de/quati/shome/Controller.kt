@@ -16,9 +16,11 @@ import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.serialization.json.JsonElement
+import kotlin.time.Duration.Companion.milliseconds
 
 
 data class State(
@@ -56,6 +58,8 @@ class Helper(
     val mac: Mac,
     val app: Application,
 ) {
+    fun logInfo(msg: String) = app.log.info("$mac - $msg")
+    fun logWarn(msg: String) = app.log.warn("$mac - $msg")
     val state = MutableStateFlow(State(mac = mac))
     val httpClient = HttpClient(CIO) {}
 
@@ -64,7 +68,7 @@ class Helper(
 
     fun deleteWebhook(id: Int): ShellyRpcResponse {
         state.update { s -> s.copy(webhooks = s.webhooks.filter { it.id != id }) }
-        app.log.info("Deleted webhook with id: $id")
+        logInfo("Deleted webhook with id: $id")
         return ShellyRpcResponse()
     }
 
@@ -81,7 +85,7 @@ class Helper(
                 )
             )
         }
-        app.log.info("Created webhook: ${w.event}; url: ${w.urls}")
+        logInfo("Created webhook: ${w.event}; url: ${w.urls}")
         return ShellyRpcResponse()
     }
 
@@ -92,7 +96,7 @@ class Helper(
 
     fun setKvs(entry: ShellyRpcRequest.Params.KvsEntry): ShellyRpcResponse {
         state.update { s -> s.copy(kvs = s.kvs + (entry.key to entry.value)) }
-        app.log.info("Set KVS entry: ${entry.key}=${entry.value}")
+        logInfo("Set KVS entry: ${entry.key}=${entry.value}")
         return ShellyRpcResponse()
     }
 
@@ -118,7 +122,7 @@ class Helper(
                 )
             )
         }
-        app.log.info("Set config: $config")
+        logInfo("Set config: $config")
         return ShellyRpcResponse()
     }
 
@@ -130,9 +134,9 @@ class Helper(
             .forEach { url ->
                 httpClient.get(url).also {
                     if (it.status.isSuccess())
-                        app.log.info("Sending webhook request to $url")
+                        logInfo("Sending webhook request to $url")
                     else
-                        app.log.warn("Failed to send webhook request to $url, http code: ${it.status.value}")
+                        logWarn("Failed to send webhook request to $url, http code: ${it.status.value}")
                 }
             }
         state.update { s ->
@@ -142,7 +146,7 @@ class Helper(
             }
             s.copy(status = s.status.copy(cover0 = s.status.cover0?.copy(lastDirection = lastDirection)))
         }
-        app.log.info("Cover moving: $eventType")
+        logInfo("Cover moving: $eventType")
         return ShellyRpcResponse()
     }
 
@@ -165,8 +169,9 @@ fun Application.addController(mac: Mac) {
                 ShellyRpcMethod.SHELLY_GET_STATUS -> helper.getStatus()
                 ShellyRpcMethod.SYS_SET_CONFIG -> helper.setConfig(body.parse<ShellyRpcRequest.Params.SetConfig>())
             }
+            delay(100.milliseconds)
             call.respond(status = HttpStatusCode.OK, message = response)
-            log.info("Request handled: $body")
+            helper.logInfo("Request handled: $body")
         }
     }
 }

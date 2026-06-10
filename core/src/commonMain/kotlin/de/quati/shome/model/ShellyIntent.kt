@@ -7,7 +7,7 @@ import kotlin.time.Instant
 @Serializable
 sealed interface ShellyIntent {
     @Serializable
-    data object FixWebhooks : ShellyIntent
+    data object Reload : ShellyIntent
 
     @Serializable
     data object Delete : ShellyIntent
@@ -16,26 +16,39 @@ sealed interface ShellyIntent {
     data class MoveTo(val pos: Position) : ShellyIntent
 
     @Serializable
-    data class SetDurations(
-        val totalDurationClose: Duration,
-        val totalDurationOpen: Duration,
+    data class Update(
+        val name: String?,
+        val totalDurationClose: Duration?,
+        val totalDurationOpen: Duration?,
+        val fixWebhooks: Boolean,
     ) : ShellyIntent {
-        val kvsEntries: List<ShellyRpcRequest.Params.KvsEntry> get() = listOf(
-            ShellyRpcRequest.Params.KvsEntry.totalDuration(
-                direction = Direction.CLOSE,
-                duration = totalDurationClose
-            ),
-            ShellyRpcRequest.Params.KvsEntry.totalDuration(
-                direction = Direction.OPEN,
-                duration = totalDurationOpen
-            )
-        )
-    }
+        val setConfig
+            get() = name?.let { name ->
+                ShellyRpcRequest.Params.SetConfig(
+                    ShellyRpcRequest.Params.SetConfig.Config(
+                        device = ShellyRpcRequest.Params.SetConfig.Config.Device(
+                            name = name
+                        )
+                    )
+                )
+            }
 
-    @Serializable
-    data class SetConfig(
-        val name: String,
-    ) : ShellyIntent
+        val kvsEntries: List<ShellyRpcRequest.Params.KvsEntry>
+            get() = listOfNotNull(
+                totalDurationClose?.let {
+                    ShellyRpcRequest.Params.KvsEntry.totalDuration(
+                        direction = Direction.CLOSE,
+                        duration = it
+                    )
+                },
+                totalDurationOpen?.let {
+                    ShellyRpcRequest.Params.KvsEntry.totalDuration(
+                        direction = Direction.OPEN,
+                        duration = totalDurationOpen
+                    )
+                },
+            )
+    }
 
     @Serializable
     data class WebhookEventReceived(
