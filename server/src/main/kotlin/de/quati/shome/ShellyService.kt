@@ -15,6 +15,7 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
 import de.quati.shome.model.BackendConfig
+import de.quati.shome.model.KvsKey
 import de.quati.shome.model.ShellyRpcMethod
 import de.quati.shome.model.ShellyRpcRequest
 import de.quati.shome.model.ShellyRpcResponse
@@ -56,6 +57,12 @@ class ShellyService(
         ip = ip,
         met = ShellyRpcMethod.KVS_SET,
         params = entry,
+    )
+
+    suspend fun deleteKvs(ip: NetworkEndpoint, key: KvsKey) = request(
+        ip = ip,
+        met = ShellyRpcMethod.KVS_DELETE,
+        params = ShellyRpcRequest.Params.DeleteKvsEntry(key),
     )
 
     suspend fun setConfig(ip: NetworkEndpoint, entry: ShellyRpcRequest.Params.SetConfig) = request(
@@ -128,6 +135,7 @@ class ShellyService(
             totalDurationOpen = kvs.totalDuration(Direction.OPEN),
             latestEvent = null,
             latestDirection = status.cover0?.lastDirectionTyped,
+            profiles = kvs.profiles,
         ).tryToValid()
         return info
     }

@@ -10,6 +10,7 @@ import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlin.jvm.JvmInline
 import kotlin.math.absoluteValue
+import kotlin.math.roundToInt
 
 
 @Serializable
@@ -31,6 +32,9 @@ enum class ShellyRpcMethod {
 
     @SerialName("KVS.Set")
     KVS_SET,
+
+    @SerialName("KVS.Delete")
+    KVS_DELETE,
 
     @SerialName("KVS.GetMany")
     KVS_GET_MANY,
@@ -107,10 +111,76 @@ value class Distance(val value: Double) {
 }
 
 
+@Serializable(with = KvsKey.Serializer::class)
+sealed interface KvsKey {
+    val keyValue: String
+    val isValid get() = keyValue.length in 1..42
+
+    companion object {
+        private const val PROFILE_PREFIX = "qp_"
+    }
+
+    @JvmInline
+    value class Profile(val name: ProfileName) : KvsKey {
+        override val keyValue get() = PROFILE_PREFIX + name.value
+        override fun toString() = keyValue
+    }
+
+    @JvmInline
+    value class Other(val value: String) : KvsKey {
+        override val keyValue get() = value
+        override fun toString() = keyValue
+    }
+
+    data object TotalMsOpen : KvsKey {
+        override val keyValue get() = "total_duration_open_in_ms"
+        override fun toString() = keyValue
+    }
+
+    data object TotalMsClose : KvsKey {
+        override val keyValue get() = "total_duration_close_in_ms"
+        override fun toString() = keyValue
+    }
+
+
+    object Serializer : KSerializer<KvsKey> {
+        override val descriptor = PrimitiveSerialDescriptor("KvsKey", PrimitiveKind.STRING)
+        override fun serialize(encoder: Encoder, value: KvsKey) {
+            if (!value.isValid)
+                throw SerializationException("KvsKey ${value.keyValue} is too short or long, min 1 and max 42 chars allowed")
+            encoder.encodeString(value.keyValue)
+        }
+
+        override fun deserialize(decoder: Decoder): KvsKey {
+            val v = decoder.decodeString()
+            return when {
+                v == TotalMsOpen.keyValue -> TotalMsOpen
+                v == TotalMsClose.keyValue -> TotalMsClose
+                v.startsWith(PROFILE_PREFIX) -> Profile(ProfileName(v.removePrefix(PROFILE_PREFIX)))
+                else -> Other(v)
+            }
+        }
+    }
+
+}
+
+@JvmInline
+@Serializable
+value class ProfileName(val value: String) {
+    val kvsKey get() = KvsKey.Profile(this)
+    val isValid get() = kvsKey.isValid
+}
+
+@JvmInline
+value class PositionPercent(val value: Int) {
+    val position get() = Position(value.coerceIn(0, 100) / 100.0)
+}
+
 @JvmInline
 @Serializable
 value class Position(val value: Double) {
     fun compute(distance: Distance) = (value + distance.value).coerceIn(0.0, 1.0).let(::Position)
+    val percent get() = PositionPercent((value * 100).roundToInt().coerceIn(0, 100))
 
     fun distanceLeft(direction: Direction) = when (direction) {
         Direction.CLOSE -> (CLOSED.value - value.coerceIn(0.0, 1.0)).absoluteValue
@@ -152,6 +222,11 @@ enum class Direction {
         get() = when (this) {
             CLOSE -> OPEN
             OPEN -> CLOSE
+        }
+    val totalDurationKvsKey
+        get() = when (this) {
+            CLOSE -> KvsKey.TotalMsClose
+            OPEN -> KvsKey.TotalMsOpen
         }
 
     val lastDirectionValue

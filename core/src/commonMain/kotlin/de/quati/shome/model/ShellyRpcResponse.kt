@@ -4,10 +4,9 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.longOrNull
-import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 @Serializable
@@ -34,8 +33,11 @@ data class ShellyRpcResponse(
             val offset: Int,
             val total: Int,
         ) : Params {
-            fun totalDuration(direction: Direction) = items.firstOrNull { it.isTotalDuration(direction) }
-                ?.value?.jsonPrimitive?.longOrNull?.milliseconds
+            val profiles get() = items.mapNotNull { it.profileOrNull }.toMap()
+            fun totalDuration(direction: Direction) =
+                items.firstNotNullOfOrNull { it.totalDurationValueOrNull(direction) }
+
+
         }
 
         @Serializable

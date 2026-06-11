@@ -5,8 +5,12 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.encodeToJsonElement
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 
 @Serializable
 data class ShellyRpcRequest(
@@ -54,25 +58,39 @@ data class ShellyRpcRequest(
         ) : Params
 
         @Serializable
+        data class DeleteKvsEntry(
+            val key: KvsKey,
+        ) : Params
+
+        @Serializable
         data class KvsEntry(
-            val key: String,
+            val key: KvsKey,
             val value: JsonElement,
         ) : Params {
-            fun isTotalDuration(direction: Direction) = key == when (direction) {
-                Direction.OPEN -> KEY_TOTAL_MS_OPEN
-                Direction.CLOSE -> KEY_TOTAL_MS_CLOSE
+            fun totalDurationValueOrNull(direction: Direction): Duration? {
+                if (direction.totalDurationKvsKey != key) return null
+                return (value as? JsonPrimitive)?.longOrNull?.milliseconds
             }
 
-            companion object {
-                private const val KEY_TOTAL_MS_OPEN = "total_duration_open_in_ms"
-                private const val KEY_TOTAL_MS_CLOSE = "total_duration_close_in_ms"
+            val profileOrNull: Pair<ProfileName, Position>?
+                get() {
+                    if (key !is KvsKey.Profile) return null
+                    val position = (value as? JsonPrimitive)?.doubleOrNull?.let(::Position) ?: return null
+                    return key.name to position
+                }
 
+            companion object {
                 fun totalDuration(direction: Direction, duration: Duration) = KvsEntry(
                     key = when (direction) {
-                        Direction.OPEN -> KEY_TOTAL_MS_OPEN
-                        Direction.CLOSE -> KEY_TOTAL_MS_CLOSE
+                        Direction.OPEN -> KvsKey.TotalMsOpen
+                        Direction.CLOSE -> KvsKey.TotalMsClose
                     },
                     value = JsonPrimitive(duration.inWholeMilliseconds),
+                )
+
+                fun profile(name: ProfileName, position: Position) = KvsEntry(
+                    key = KvsKey.Profile(name),
+                    value = JsonPrimitive(position.value),
                 )
             }
         }

@@ -1,5 +1,6 @@
 package de.quati.shome
 
+import de.quati.shome.model.KvsKey
 import de.quati.shome.model.Mac
 import de.quati.shome.model.ShellyRpcMethod
 import de.quati.shome.model.ShellyRpcRequest
@@ -27,7 +28,7 @@ data class State(
     val mac: Mac,
     val deviceName: String? = null,
     val webhooks: List<ShellyRpcResponse.Params.Webhook> = emptyList(),
-    val kvs: Map<String, JsonElement> = emptyMap(),
+    val kvs: Map<KvsKey, JsonElement> = emptyMap(),
     val config: ShellyRpcResponse.Params.ShellyConfig = ShellyRpcResponse.Params.ShellyConfig(
         cover0 = ShellyRpcResponse.Params.ShellyConfig.Cover0(
             maxtimeOpen = 0.5,
@@ -100,6 +101,12 @@ class Helper(
         return ShellyRpcResponse()
     }
 
+    fun deleteKvs(entry: ShellyRpcRequest.Params.DeleteKvsEntry): ShellyRpcResponse {
+        state.update { s -> s.copy(kvs = s.kvs - entry.key) }
+        logInfo("Delete KVS entry: ${entry.key}")
+        return ShellyRpcResponse()
+    }
+
     fun getManyKvs(): ShellyRpcResponse =
         state.value.kvs.map { (key, value) -> ShellyRpcRequest.Params.KvsEntry(key, value) }
             .let {
@@ -164,6 +171,7 @@ fun Application.addController(mac: Mac) {
                 ShellyRpcMethod.WEBHOOK_DELETE -> helper.deleteWebhook(body.parse<ShellyRpcRequest.Params.WebhookDelete>().id)
                 ShellyRpcMethod.WEBHOOK_CREATE -> helper.createWebhook(body.parse<ShellyRpcRequest.Params.Webhook>())
                 ShellyRpcMethod.KVS_SET -> helper.setKvs(body.parse<ShellyRpcRequest.Params.KvsEntry>())
+                ShellyRpcMethod.KVS_DELETE -> helper.deleteKvs(body.parse<ShellyRpcRequest.Params.DeleteKvsEntry>())
                 ShellyRpcMethod.KVS_GET_MANY -> helper.getManyKvs()
                 ShellyRpcMethod.SHELLY_GET_CONFIG -> helper.getConfig()
                 ShellyRpcMethod.SHELLY_GET_STATUS -> helper.getStatus()

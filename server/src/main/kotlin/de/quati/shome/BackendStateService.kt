@@ -7,13 +7,18 @@ import de.quati.shome.model.BackendConfig
 import de.quati.shome.model.ShellyState
 import de.quati.shome.model.BackendIntent
 import de.quati.shome.model.BackendState
+import de.quati.shome.model.KvsKey
+import de.quati.shome.model.ProfileName
 import de.quati.shome.model.ShellyIntent
+import de.quati.shome.model.ShellyRpcRequest
 import io.ktor.server.application.Application
 import io.ktor.server.application.log
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -45,6 +50,9 @@ class BackendStateService(
     suspend fun onIntent(intent: BackendIntent): Any = when (intent) {
         BackendIntent.StartSearchShellysInSubnet -> reloadShellys()
         is BackendIntent.StartSearchShellys -> reloadShellys(intent.endpoints)
+        is BackendIntent.UpsertProfile -> setProfile(intent.name, intent.positions)
+        is BackendIntent.ExecuteProfile -> moveTo(intent.name)
+        is BackendIntent.DeleteProfile -> setProfile(intent.name, emptyMap())
         is BackendIntent.Shelly -> when (val sIntent = intent.intent) {
             ShellyIntent.Delete -> state.update { s -> s.copy(shellys = s.shellys - intent.mac) }
             ShellyIntent.Reload -> reloadShelly(intent.mac)
@@ -54,6 +62,34 @@ class BackendStateService(
         }
     }.also {
         app.log.info("finished onIntent: $intent")
+    }
+
+    suspend fun setProfile(name: ProfileName, positions: Map<Mac, Position>) {
+        val before = state.value.shellys.mapNotNull { (k, v) ->
+            val pos = v.profiles[name] ?: return@mapNotNull null
+            k to pos
+        }.toMap()
+
+        val toDelete = before.keys - positions.keys
+        val toUpsert = positions.filter { (k, v) -> before[k] != v }
+
+        toDelete.forEach { mac -> // TODO parallel?
+            val ip = mac.ipOrNull ?: return@forEach
+            shellyService.deleteKvs(ip, KvsKey.Profile(name))
+        }
+        toUpsert.forEach { (mac, position) -> // TODO parallel?
+            val ip = mac.ipOrNull ?: return@forEach
+            shellyService.setKvs(ip, ShellyRpcRequest.Params.KvsEntry.profile(name, position))
+        }
+        state.update { s ->
+            val newShellys = s.shellys.mapValues { (_, state) ->
+                if (state.mac in toDelete)
+                    return@mapValues state.update(profiles = state.profiles - name)
+                val newPos = toUpsert[state.mac] ?: return@mapValues state
+                state.update(profiles = state.profiles + (name to newPos))
+            }
+            s.copy(shellys = newShellys)
+        }
     }
 
     fun updatePositions(): Boolean {
@@ -72,6 +108,16 @@ class BackendStateService(
             s.copy(shellys = newShellys)
         }
         return true
+    }
+
+    private suspend fun moveTo(name: ProfileName) {
+        val positions = state.value.shellys.mapNotNull { (k, v) ->
+            val pos = v.profiles[name] ?: return@mapNotNull null
+            k to pos
+        }.toMap()
+        positions.map { (mac, pos) ->
+            scope.async { moveTo(mac, pos) }
+        }.awaitAll()
     }
 
     private suspend fun moveTo(mac: Mac, pos: Position) {
@@ -93,11 +139,15 @@ class BackendStateService(
             null
         else
             shelly.computeDuration(direction = direction, distance = distance)
-        shellyService.coverDrive(ip = shelly.endpoint, direction = direction)
+
+        val firstMoveJob = scope.launch {
+            shellyService.coverDrive(ip = shelly.endpoint, direction = direction)
+        }
         if (delayStop != null) {
             delay(delayStop)
             shellyService.coverDrive(ip = shelly.endpoint, direction = direction.opposite)
         }
+        firstMoveJob.join()
     }
 
     private suspend fun updateShelly(mac: Mac, intent: ShellyIntent.Update) {
