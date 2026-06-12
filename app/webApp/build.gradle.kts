@@ -27,10 +27,10 @@ kotlin {
     }
 }
 
-val serverDst = rootProject.layout.projectDirectory.dir("server/src/main/resources/static")
+val staticDst = rootProject.layout.projectDirectory.dir("static")
 val cleanWasmDistribution by tasks.registering(Delete::class) {
     description = "clean wasm distribution in server resources"
-    delete(serverDst)
+    delete(staticDst)
 }
 val copyWasmDistributionProd by tasks.registering(Copy::class) {
     description = "copy wasm prod distribution to server resources"
@@ -39,7 +39,7 @@ val copyWasmDistributionProd by tasks.registering(Copy::class) {
         tasks.named("wasmJsBrowserDistribution"),
     )
     from(layout.buildDirectory.dir("dist/wasmJs/productionExecutable"))
-    into(serverDst)
+    into(staticDst)
 }
 val copyWasmDistributionDev by tasks.registering(Copy::class) {
     description = "copy wasm dev distribution to server resources"
@@ -48,5 +48,5 @@ val copyWasmDistributionDev by tasks.registering(Copy::class) {
         tasks.named("wasmJsBrowserDevelopmentExecutableDistribution"),
     )
     from(layout.buildDirectory.dir("dist/wasmJs/developmentExecutable"))
-    into(serverDst)
+    into(staticDst)
 }

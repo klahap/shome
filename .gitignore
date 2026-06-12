@@ -2,7 +2,8 @@
 .kotlin
 .gradle
 .junie
-server/src/main/resources/static/
+logs/
+static/
 **/build/
 xcuserdata
 !src/**/build/

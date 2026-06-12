@@ -4,20 +4,26 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.encodeToJsonElement
-import kotlinx.serialization.json.jsonPrimitive
 import kotlin.time.Duration.Companion.seconds
 
 @Serializable
 data class ShellyRpcResponse(
     val error: Error? = null,
-    val params: JsonElement? = null,
+    private val result: JsonElement? = null,
+    private val params: JsonElement? = null,
 ) {
+    val resultOrNull: JsonElement? get() = result ?: params
+
+    inline fun<reified T: Params> parse(): T? = resultOrNull?.let {
+        json.decodeFromJsonElement(it)
+    }
+
     companion object {
         val json = Json { ignoreUnknownKeys = true }
         inline fun <reified T : Params> create(params: T) = ShellyRpcResponse(
-            params = json.encodeToJsonElement(params),
+            result = json.encodeToJsonElement(params),
         )
     }
 
@@ -108,8 +114,8 @@ data class ShellyRpcResponse(
             data class Cover0(
                 @SerialName("maxtime_open") val maxtimeOpen: Double,
                 @SerialName("maxtime_close") val maxtimeClose: Double,
-                @SerialName("swap_inputs") val swapInputs: Boolean? = null,
-                @SerialName("invert_directions") val invertDirections: Boolean,
+                @SerialName("swap_inputs") val swapInputs: Boolean = false,
+                @SerialName("invert_directions") val invertDirections: Boolean = false,
             ) {
                 val maxtimeOpenDuration get() = maxtimeOpen.seconds
                 val maxtimeCloseDuration get() = maxtimeClose.seconds

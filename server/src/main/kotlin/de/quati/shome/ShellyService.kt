@@ -29,7 +29,6 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.decodeFromJsonElement
 
 
 class ShellyService(
@@ -151,12 +150,12 @@ class ShellyService(
         }.awaitAll().filterNotNull()
     }
 
-    private suspend inline fun <reified T> HttpResponse.parse(): T {
+    private suspend inline fun <reified T : ShellyRpcResponse.Params> HttpResponse.parse(): T {
         val response = body<ShellyRpcResponse>()
         response.error?.also {
             throw Exception("Shelly error: ${it.message ?: "Unknown error"}")
         }
-        return json.decodeFromJsonElement<T>(response.params ?: throw Exception("No params in response"))
+        return response.parse<T>() ?: throw Exception("No params in response")
     }
 
     private suspend inline fun request(
@@ -186,7 +185,7 @@ class ShellyService(
             throw Exception(it.bodyAsText().takeIf { it.isNotBlank() } ?: "Unknown error")
     }
 
-    private suspend inline fun <reified T> execute(
+    private suspend inline fun <reified T : ShellyRpcResponse.Params> execute(
         endpoint: NetworkEndpoint,
         method: ShellyRpcMethod,
     ): Result<T> = execute(
@@ -195,10 +194,10 @@ class ShellyService(
         params = null
     )
 
-    private suspend inline fun <reified P : ShellyRpcRequest.Params, reified T> execute(
+    private suspend inline fun <reified P : ShellyRpcRequest.Params, reified T : ShellyRpcResponse.Params> execute(
         endpoint: NetworkEndpoint,
         method: ShellyRpcMethod,
         params: P?,
     ): Result<T> = request(ip = endpoint, met = method, params = params)
-        .mapCatching { it.parse() }
+        .mapCatching { it.parse<T>() }
 }
