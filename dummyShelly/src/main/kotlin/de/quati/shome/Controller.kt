@@ -117,7 +117,7 @@ class Helper(
                 )
             }.let { ShellyRpcResponse.create(params = it) }
 
-    fun setConfig(config: ShellyRpcRequest.Params.SetConfig): ShellyRpcResponse {
+    fun setConfig(config: ShellyRpcRequest.Params.SysSetConfig): ShellyRpcResponse {
         state.update { s ->
             s.copy(
                 config = s.config.copy(
@@ -126,6 +126,24 @@ class Helper(
                             name = config.config.device.name
                         )
                     )
+                )
+            )
+        }
+        logInfo("Set config: $config")
+        return ShellyRpcResponse()
+    }
+
+    fun setConfig(config: ShellyRpcRequest.Params.CoverSetConfig): ShellyRpcResponse {
+        state.update { s ->
+            val cover0 = s.config.cover0 ?: return@update s
+            s.copy(
+                config = s.config.copy(
+                    cover0 = cover0.copy(
+                        maxtimeOpen = config.config.maxOpenDuration ?: cover0.maxtimeOpen,
+                        maxtimeClose = config.config.maxCloseDuration ?: cover0.maxtimeClose,
+                        invertDirections = config.config.invertDirections ?: cover0.invertDirections,
+                        swapInputs = config.config.swapInputs ?: cover0.swapInputs,
+                    ),
                 )
             )
         }
@@ -175,7 +193,8 @@ fun Application.addController(mac: Mac) {
                 ShellyRpcMethod.KVS_GET_MANY -> helper.getManyKvs()
                 ShellyRpcMethod.SHELLY_GET_CONFIG -> helper.getConfig()
                 ShellyRpcMethod.SHELLY_GET_STATUS -> helper.getStatus()
-                ShellyRpcMethod.SYS_SET_CONFIG -> helper.setConfig(body.parse<ShellyRpcRequest.Params.SetConfig>())
+                ShellyRpcMethod.SYS_SET_CONFIG -> helper.setConfig(body.parse<ShellyRpcRequest.Params.SysSetConfig>())
+                ShellyRpcMethod.COVER_SET_CONFIG -> helper.setConfig(body.parse<ShellyRpcRequest.Params.CoverSetConfig>())
             }
             delay(100.milliseconds)
             call.respond(status = HttpStatusCode.OK, message = response)

@@ -14,10 +14,10 @@ sealed interface ShellyState {
     val totalDurationClose: Duration?
     val totalDurationOpen: Duration?
     val latestEvent: Event?
+    val configCover: ShellyRpcResponse.Params.ShellyConfig.Cover0?
     val isCoverProfile: Boolean
     val webhooksValid: Boolean
     val profiles: Map<ProfileName, Position>
-    val prettyName get() = name ?: "unnamed"
 
     fun update(newState: ShellyState?): ShellyState {
         if (newState == null) return this
@@ -67,6 +67,7 @@ sealed interface ShellyState {
         override val totalDurationOpen: Duration,
         override val latestEvent: Event,
         override val profiles: Map<ProfileName, Position>,
+        override val configCover: ShellyRpcResponse.Params.ShellyConfig.Cover0,
     ) : ShellyState {
         override val isCoverProfile: Boolean = true
         override val webhooksValid: Boolean = true
@@ -146,6 +147,7 @@ sealed interface ShellyState {
         override val totalDurationOpen: Duration?,
         val latestDirection: Direction?,
         override val latestEvent: Event?,
+        override val configCover: ShellyRpcResponse.Params.ShellyConfig.Cover0?,
         override val isCoverProfile: Boolean,
         override val webhooksValid: Boolean,
         override val profiles: Map<ProfileName, Position>,
@@ -165,6 +167,7 @@ sealed interface ShellyState {
                     direction = null,
                 ),
                 profiles = profiles,
+                configCover = configCover ?: return null
             )
         }
 

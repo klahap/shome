@@ -1,5 +1,6 @@
 package de.quati.shome.model
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -7,7 +8,6 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.encodeToJsonElement
-import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -96,7 +96,30 @@ data class ShellyRpcRequest(
         }
 
         @Serializable
-        data class SetConfig(
+        data class CoverSetConfig(
+            val id: Int,
+            val config: Config,
+        ) : Params {
+            @Serializable
+            data class Config(
+                @SerialName("maxtime_open")
+                val maxOpenDuration: Double? = null,
+                @SerialName("maxtime_close")
+                val maxCloseDuration: Double? = null,
+                @SerialName("swap_inputs")
+                val swapInputs: Boolean? = null,
+                @SerialName("invert_directions")
+                val invertDirections: Boolean? = null,
+            ) {
+                val isEmpty: Boolean
+                    get() = listOfNotNull(
+                        maxOpenDuration, maxCloseDuration, swapInputs, invertDirections
+                    ).isEmpty()
+            }
+        }
+
+        @Serializable
+        data class SysSetConfig(
             val config: Config
         ) : Params {
             @Serializable

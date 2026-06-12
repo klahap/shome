@@ -14,8 +14,6 @@ import io.ktor.server.application.Application
 import io.ktor.server.application.install
 import io.ktor.server.engine.*
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.server.plugins.cors.routing.*
-import io.ktor.http.*
 import io.ktor.server.application.log
 
 /*
@@ -33,7 +31,7 @@ class MainCmd : SuspendingCliktCommand() {
         .convert { NetworkEndpoint.parse(it) }.multiple()
 
     val backendConfigContext by lazy {
-        val ip = (host as? Host.IPv4) ?: getServerIp()
+        val ip = (host as? Host.IPv4) ?: backendIp
         BackendConfig.Context.create(
             ip = ip,
             endpoint = NetworkEndpoint(
@@ -70,14 +68,7 @@ suspend fun Application.rootModule(cmd: MainCmd) {
     install(ContentNegotiation) {
         json()
     }
-    install(CORS) {
-        anyHost()
-        HttpMethod.DefaultMethods.forEach {
-            allowMethod(it)
-        }
-        allowHeader(HttpHeaders.ContentType)
-        allowHeader(HttpHeaders.Authorization)
-    }
+    disableCors()
     addController(backendStateService = backendStateService)
 
     cmd.shellySearchEndpoints.toSet().takeIf { it.isNotEmpty() }?.also {

@@ -152,8 +152,11 @@ class BackendStateService(
 
     private suspend fun updateShelly(mac: Mac, intent: ShellyIntent.Update) {
         val ip = mac.ipOrNull ?: return
-        intent.setConfig?.also {
-            shellyService.setConfig(ip = ip, entry = it)
+        intent.sysSetConfig?.also {
+            shellyService.setSysConfig(ip = ip, entry = it)
+        }
+        intent.coverSetConfig?.also {
+            shellyService.setSysConfig(ip = ip, entry = it)
         }
         intent.kvsEntries.forEach { entry ->
             shellyService.setKvs(ip, entry)

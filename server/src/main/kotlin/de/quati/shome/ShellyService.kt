@@ -64,9 +64,15 @@ class ShellyService(
         params = ShellyRpcRequest.Params.DeleteKvsEntry(key),
     )
 
-    suspend fun setConfig(ip: NetworkEndpoint, entry: ShellyRpcRequest.Params.SetConfig) = request(
+    suspend fun setSysConfig(ip: NetworkEndpoint, entry: ShellyRpcRequest.Params.SysSetConfig) = request(
         ip = ip,
         met = ShellyRpcMethod.SYS_SET_CONFIG,
+        params = entry,
+    )
+
+    suspend fun setSysConfig(ip: NetworkEndpoint, entry: ShellyRpcRequest.Params.CoverSetConfig) = request(
+        ip = ip,
+        met = ShellyRpcMethod.COVER_SET_CONFIG,
         params = entry,
     )
 
@@ -135,6 +141,7 @@ class ShellyService(
             latestEvent = null,
             latestDirection = status.cover0?.lastDirectionTyped,
             profiles = kvs.profiles,
+            configCover = config.cover0,
         ).tryToValid()
         return info
     }

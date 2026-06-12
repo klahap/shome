@@ -47,6 +47,9 @@ enum class ShellyRpcMethod {
 
     @SerialName("Sys.SetConfig")
     SYS_SET_CONFIG,
+
+    @SerialName("Cover.SetConfig")
+    COVER_SET_CONFIG,
 }
 
 @Serializable(with = Host.Serializer::class)
@@ -174,6 +177,7 @@ value class ProfileName(val value: String) {
 @JvmInline
 value class PositionPercent(val value: Int) {
     val position get() = Position(value.coerceIn(0, 100) / 100.0)
+    override fun toString() = "$value"
 }
 
 @JvmInline
@@ -181,6 +185,7 @@ value class PositionPercent(val value: Int) {
 value class Position(val value: Double) {
     fun compute(distance: Distance) = (value + distance.value).coerceIn(0.0, 1.0).let(::Position)
     val percent get() = PositionPercent((value * 100).roundToInt().coerceIn(0, 100))
+    override fun toString() = "$value"
 
     fun distanceLeft(direction: Direction) = when (direction) {
         Direction.CLOSE -> (CLOSED.value - value.coerceIn(0.0, 1.0)).absoluteValue
