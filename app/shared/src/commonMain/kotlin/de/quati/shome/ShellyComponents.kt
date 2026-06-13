@@ -4,6 +4,9 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -24,6 +27,38 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.DurationUnit
 
+
+@Composable
+fun ShellySection(
+    state: BackendState,
+    onIntent: (BackendIntent) -> Unit,
+) {
+    if (state.shellySearchState is BackendState.ShellySearchState.Searching) {
+        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+    } else {
+        Button(
+            onClick = { onIntent(BackendIntent.StartSearchShellysInSubnet) },
+        ) {
+            Text("Search Shellys")
+        }
+    }
+    Spacer(modifier = Modifier.height(8.dp))
+
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = 300.dp),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        modifier = Modifier.fillMaxSize()
+    ) {
+        items(state.shellys.values.toList()) { shelly ->
+            ShellyCard(
+                shelly = shelly,
+                onIntent = { intent -> onIntent(BackendIntent.Shelly(shelly.mac, intent)) },
+            )
+        }
+    }
+}
 
 @Composable
 fun ShellyCard(shelly: ShellyState, onIntent: (ShellyIntent) -> Unit) {

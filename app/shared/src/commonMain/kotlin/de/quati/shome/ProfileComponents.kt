@@ -7,7 +7,6 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PlayArrow
@@ -23,7 +22,7 @@ import de.quati.shome.model.*
 fun ProfileSection(
     profiles: Map<ProfileName, Map<Mac, Position>>,
     shellys: List<ShellyState>,
-    onIntent: (BackendIntent) -> Unit
+    onIntent: (BackendIntent) -> Unit,
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
 
@@ -33,12 +32,13 @@ fun ProfileSection(
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Profiles", style = MaterialTheme.typography.headlineSmall)
-            IconButton(onClick = { showAddDialog = true }) {
-                Icon(Icons.Default.Add, contentDescription = "Add Profile")
+            Button(
+                onClick = { showAddDialog = true },
+            ) {
+                Text("Add Profile")
             }
         }
 

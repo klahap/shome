@@ -1,25 +1,35 @@
 package de.quati.shome
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import de.quati.shome.model.*
 import kotlinx.coroutines.flow.collectLatest
+
+enum class Screen {
+    ShellyControl,
+    ProfileCrud;
+
+    val title: String
+        get() = when (this) {
+            ShellyControl -> "Shellys"
+            ProfileCrud -> "Profiles"
+        }
+}
 
 @Composable
 @Preview
 fun App(viewModel: AppViewModel = viewModel { AppViewModel() }) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    var currentScreen by remember { mutableStateOf(Screen.ShellyControl) }
 
     LaunchedEffect(Unit) {
         viewModel.errors.collectLatest { error ->
@@ -31,10 +41,25 @@ fun App(viewModel: AppViewModel = viewModel { AppViewModel() }) {
         Scaffold(
             topBar = {
                 CenterAlignedTopAppBar(
-                    title = { Text("SHome") },
+                    title = { Text(currentScreen.title) },
                     actions = {
-                        Button(onClick = { viewModel.sendIntent(BackendIntent.StartSearchShellysInSubnet) }) {
-                            Text("Search")
+                    },
+                    navigationIcon = {
+                        Row {
+                            IconButton(onClick = { currentScreen = Screen.ShellyControl }) {
+                                Icon(
+                                    Icons.Default.Devices,
+                                    contentDescription = "Shelly Control",
+                                    tint = if (currentScreen == Screen.ShellyControl) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            IconButton(onClick = { currentScreen = Screen.ProfileCrud }) {
+                                Icon(
+                                    Icons.Default.AutoAwesome,
+                                    contentDescription = "Profile CRUD",
+                                    tint = if (currentScreen == Screen.ProfileCrud) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
                         }
                     }
                 )
@@ -46,29 +71,18 @@ fun App(viewModel: AppViewModel = viewModel { AppViewModel() }) {
                     .padding(padding),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                if (state.shellySearchState is BackendState.ShellySearchState.Searching) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
+                when (currentScreen) {
+                    Screen.ShellyControl -> ShellySection(
+                        state = state,
+                        onIntent = { viewModel.sendIntent(it) },
+                    )
 
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 300.dp),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    items(state.shellys.values.toList()) { shelly ->
-                        ShellyCard(shelly, onIntent = { intent ->
-                            viewModel.sendIntent(BackendIntent.Shelly(shelly.mac, intent))
-                        })
-                    }
+                    Screen.ProfileCrud -> ProfileSection(
+                        profiles = state.profiles,
+                        shellys = state.shellys.values.toList(),
+                        onIntent = { viewModel.sendIntent(it) },
+                    )
                 }
-
-                ProfileSection(
-                    profiles = state.profiles,
-                    shellys = state.shellys.values.toList(),
-                    onIntent = { viewModel.sendIntent(it) }
-                )
             }
         }
     }
