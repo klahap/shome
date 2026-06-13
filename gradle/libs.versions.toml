@@ -38,6 +38,7 @@ wrappers-browser = { module = "org.jetbrains.kotlin-wrappers:kotlin-browser", ve
 clikt = { module = "com.github.ajalt.clikt:clikt", version = "5.1.0" }
 kotlinx-serialization = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version = "1.11.0" }
 kotest-core = { module = "io.kotest:kotest-assertions-core", version = "6.1.11" }
+jmdns = { module = "org.jmdns:jmdns", version = "3.6.3" }
 
 [plugins]
 composeMultiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }

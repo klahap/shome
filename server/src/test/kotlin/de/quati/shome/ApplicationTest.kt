@@ -26,4 +26,9 @@ class ApplicationTest {
 
         service.coverDrive(shellyIp, direction = Direction.CLOSE)
     }
+
+    @Test
+    fun testSearchDevices(): Unit = runBlocking {
+        searchDevices().collect(::println)
+    }
 }

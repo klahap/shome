@@ -10,16 +10,6 @@ application {
     mainClass = "de.quati.shome.MainKt"
 }
 
-kotlin {
-    jvmToolchain(21)
-    compilerOptions {
-        freeCompilerArgs.addAll(
-            "-Xcontext-parameters",
-            "-Xexplicit-backing-fields",
-        )
-    }
-}
-
 dependencies {
     api(projects.core)
     implementation(libs.logback)

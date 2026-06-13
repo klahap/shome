@@ -10,16 +10,6 @@ application {
     mainClass = "de.quati.shome.MainKt"
 }
 
-kotlin {
-    jvmToolchain(21)
-    compilerOptions {
-        freeCompilerArgs.addAll(
-            "-Xcontext-parameters",
-            "-Xexplicit-backing-fields",
-        )
-    }
-}
-
 dependencies {
     api(projects.core)
     implementation(libs.logback)
@@ -32,6 +22,7 @@ dependencies {
     implementation(libs.ktor.client.contentNegotiation)
     implementation(libs.ktor.client.core)
     implementation(libs.clikt)
+    implementation(libs.jmdns)
     implementation(libs.kotlinx.serialization)
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.kotlin.testJunit)

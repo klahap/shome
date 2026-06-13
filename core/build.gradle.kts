@@ -27,11 +27,4 @@ kotlin {
             implementation(libs.kotest.core)
         }
     }
-
-    compilerOptions {
-        freeCompilerArgs.addAll(
-            "-Xcontext-parameters",
-            "-Xexplicit-backing-fields",
-        )
-    }
 }
