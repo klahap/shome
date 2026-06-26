@@ -6,6 +6,7 @@ import com.github.ajalt.clikt.parameters.options.convert
 import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.multiple
 import com.github.ajalt.clikt.parameters.options.option
+import com.github.ajalt.clikt.parameters.types.file
 import com.github.ajalt.clikt.parameters.types.int
 import de.quati.shome.model.Host
 import de.quati.shome.model.NetworkEndpoint
@@ -32,6 +33,8 @@ IP=$(ifconfig | grep 'inet ' | grep -v '127.0.0.1' | awk '{print $2}' | head -1)
 class MainCmd : SuspendingCliktCommand() {
     private val host by option(help = "IP or hostname to listen on").convert { Host.parse(it) }
     private val port by option(help = "Port to listen on").int().default(8080)
+    val jarPath by option(help = "Path to the server-all.jar file")
+        .file(mustExist = true, canBeDir = false)
     val shellySearchEndpoints by option(help = "Endpoints to search for shellys")
         .convert { NetworkEndpoint.parse(it) }.multiple()
 
@@ -66,11 +69,16 @@ suspend fun Application.rootModule(cmd: MainCmd) {
     val serverConfigContext = cmd.backendConfigContext
     val shellyService = ShellyService(backendConfigContext = serverConfigContext)
     val dbService = DbService()
+    val otfService = cmd.jarPath?.toPath()?.let {
+        log.info("OTF service enabled")
+        OtfService(jarPath = it)
+    }
     val backendStateService = BackendStateService(
         app = this,
         backendConfigContext = serverConfigContext,
         shellyService = shellyService,
         dbService = dbService,
+        otfService = otfService,
     )
     val cronJobService = CronJobService(
         app = this,

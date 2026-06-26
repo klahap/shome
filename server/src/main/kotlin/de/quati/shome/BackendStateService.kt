@@ -31,10 +31,18 @@ class BackendStateService(
     val app: Application,
     val dbService: DbService,
     val shellyService: ShellyService,
+    val otfService: OtfService?,
 ) : BackendConfig.Context by backendConfigContext {
     val scope = CoroutineScope(Dispatchers.Default + SupervisorJob() + CoroutineName("BackendStateService"))
+    private val defaultOtfState = if (otfService == null) BackendState.OtfState.DISABLED
+    else BackendState.OtfState.ENABLED
     val state: StateFlow<BackendState>
-        field = MutableStateFlow(BackendState())
+        field = MutableStateFlow(
+            BackendState(
+                currentVersion = BuildInfo.VERSION,
+                otfState = defaultOtfState,
+            )
+        )
 
     init {
         // update profiles
@@ -60,6 +68,24 @@ class BackendStateService(
 
     suspend fun onIntent(intent: BackendIntent): Any = when (intent) {
         BackendIntent.StartSearchShellysInSubnet -> reloadShellys()
+        BackendIntent.OTFSearchLatestVersion -> {
+            state.update { it.copy(otfState = BackendState.OtfState.SEARCHING) }
+            val version = otfService?.searchLatestVersion()
+            state.update {
+                it.copy(
+                    latestVersion = version,
+                    otfState = defaultOtfState,
+                )
+            }
+        }
+
+        BackendIntent.OTFRun -> {
+            val version = state.value.latestVersion ?: return Unit
+            state.update { it.copy(otfState = BackendState.OtfState.UPDATING) }
+            otfService?.update(version)
+            state.update { it.copy(otfState = defaultOtfState) }
+        }
+
         is BackendIntent.StartSearchShellys -> reloadShellys(intent.endpoints)
         is BackendIntent.UpsertProfile -> dbService.upsertProfile(intent.data)
         is BackendIntent.ExecuteProfile -> moveTo(intent.id)

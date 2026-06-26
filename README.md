@@ -21,7 +21,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=/home/admin
-ExecStart=/usr/bin/java -Xms128m -Xmx400m -Xss512k -XX:MaxMetaspaceSize=128m -XX:MaxDirectMemorySize=64m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -jar /home/admin/server-all.jar --port 80
+ExecStart=/usr/bin/java -Xms128m -Xmx400m -Xss512k -XX:MaxMetaspaceSize=128m -XX:MaxDirectMemorySize=64m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -jar /home/admin/server-all.jar --port 80 --jar-path /home/admin/server-all.jar
 MemoryMax=700M
 Restart=on-failure
 RestartSec=5

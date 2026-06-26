@@ -5,11 +5,16 @@ import de.quati.shome.model.Host
 import de.quati.shome.model.NetworkEndpoint
 import de.quati.shome.model.Profile
 import de.quati.shome.model.ProfileId
+import io.ktor.client.HttpClient
+import io.ktor.client.call.body
+import io.ktor.client.request.get
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
 import io.ktor.server.plugins.cors.routing.CORS
+import io.ktor.utils.io.ByteReadChannel
+import io.ktor.utils.io.readAvailable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.TimeoutCancellationException
@@ -23,17 +28,22 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.timeout
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
+import java.io.BufferedOutputStream
+import java.io.OutputStream
 import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.NetworkInterface
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.StandardCopyOption
 import java.time.LocalDateTime
-import java.time.LocalTime
 import java.time.ZoneId
 import javax.jmdns.JmDNS
 import javax.jmdns.ServiceEvent
 import javax.jmdns.ServiceListener
+import kotlin.io.path.name
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -113,3 +123,36 @@ fun cronTimeFlow(zoneId: ZoneId) = flow {
         emit(CronJobTime(hour = dt.hour, minute = dt.minute))
     }
 }.distinctUntilChanged()
+
+fun String.parseVersion(): KotlinVersion? {
+    val (major, minor, patch) = split(".").map { it.toIntOrNull() ?: return null }
+        .takeIf { it.size == 3 } ?: return null
+    return KotlinVersion(major = major, minor = minor, patch = patch)
+}
+
+suspend fun updateFileAtomic(dst: Path, tmpWriter: suspend BufferedOutputStream.() -> Unit) {
+    val tmp = dst.resolveSibling("${dst.name}.tmp")
+    withContext(Dispatchers.IO) {
+        BufferedOutputStream(
+            Files.newOutputStream(tmp)
+        ).use { it.tmpWriter() }
+        Files.move(
+            tmp, dst,
+            StandardCopyOption.ATOMIC_MOVE,
+            StandardCopyOption.REPLACE_EXISTING
+        )
+    }
+}
+
+suspend fun HttpClient.downloadFile(url: String, output: OutputStream) {
+    val channel: ByteReadChannel = get(url).body()
+    withContext(Dispatchers.IO) {
+        val buffer = ByteArray(8 * 1024)
+        while (!channel.isClosedForRead) {
+            val read = channel.readAvailable(buffer)
+            if (read == -1) break
+            output.write(buffer, 0, read)
+        }
+        output.flush()
+    }
+}

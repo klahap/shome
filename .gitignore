@@ -5,6 +5,7 @@
 logs/
 db.json
 db.json.tmp
+server.jar
 static/
 **/build/
 xcuserdata

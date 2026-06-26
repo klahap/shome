@@ -5,6 +5,7 @@ import de.quati.shome.model.Direction
 import de.quati.shome.model.Host
 import de.quati.shome.model.NetworkEndpoint
 import kotlinx.coroutines.runBlocking
+import kotlin.io.path.Path
 import kotlin.test.*
 
 class ApplicationTest {
@@ -30,5 +31,11 @@ class ApplicationTest {
     @Test
     fun testSearchDevices(): Unit = runBlocking {
         searchDevices().collect(::println)
+    }
+
+    @Test
+    fun testOtf(): Unit = runBlocking {
+        val srevice = OtfService(Path("./server.jar"))
+        srevice.update()
     }
 }

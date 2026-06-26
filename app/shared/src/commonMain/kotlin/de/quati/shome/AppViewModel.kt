@@ -45,7 +45,9 @@ class AppViewModel : ViewModel() {
     val errors: SharedFlow<String>
         field = MutableSharedFlow()
 
-    val state = MutableStateFlow(BackendState()).also { stateFlow ->
+    val state = MutableStateFlow(BackendState(
+        otfState = BackendState.OtfState.DISABLED,
+    )).also { stateFlow ->
         viewModelScope.launch {
             while (true) {
                 try {

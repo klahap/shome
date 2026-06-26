@@ -42,6 +42,7 @@ class DbService {
             ?: DbData()
         val newData = block(oldData)
         newData?.let { json.encodeToString(it) }?.also { text ->
+            updateFileAtomic(path) { write(text.toByteArray()) }
             val tmp = path.resolveSibling("${path.name}.tmp").also { it.writeText(text) }
             Files.move(
                 tmp, path,
