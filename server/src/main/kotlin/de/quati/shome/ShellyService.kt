@@ -140,7 +140,6 @@ class ShellyService(
             totalDurationOpen = kvs.totalDuration(Direction.OPEN),
             latestEvent = null,
             latestDirection = status.cover0?.lastDirectionTyped,
-            profiles = kvs.profiles,
             configCover = config.cover0,
         ).tryToValid()
         return info

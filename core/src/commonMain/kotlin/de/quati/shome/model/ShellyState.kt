@@ -17,7 +17,6 @@ sealed interface ShellyState {
     val configCover: ShellyRpcResponse.Params.ShellyConfig.Cover0?
     val isCoverProfile: Boolean
     val webhooksValid: Boolean
-    val profiles: Map<ProfileName, Position>
 
     fun update(newState: ShellyState?): ShellyState {
         if (newState == null) return this
@@ -26,11 +25,6 @@ sealed interface ShellyState {
             is Invalid -> newState.copy(latestEvent = oldEvent ?: newState.latestEvent)
             is Valid -> newState.copy(latestEvent = oldEvent ?: newState.latestEvent)
         }
-    }
-
-    fun update(profiles: Map<ProfileName, Position>): ShellyState = when (this) {
-        is Invalid -> copy(profiles = profiles)
-        is Valid -> copy(profiles = profiles)
     }
 
     fun update(intent: ShellyIntent.WebhookEventReceived): ShellyState = when (this) {
@@ -66,7 +60,6 @@ sealed interface ShellyState {
         override val totalDurationClose: Duration,
         override val totalDurationOpen: Duration,
         override val latestEvent: Event,
-        override val profiles: Map<ProfileName, Position>,
         override val configCover: ShellyRpcResponse.Params.ShellyConfig.Cover0,
     ) : ShellyState {
         override val isCoverProfile: Boolean = true
@@ -150,7 +143,6 @@ sealed interface ShellyState {
         override val configCover: ShellyRpcResponse.Params.ShellyConfig.Cover0?,
         override val isCoverProfile: Boolean,
         override val webhooksValid: Boolean,
-        override val profiles: Map<ProfileName, Position>,
     ) : ShellyState {
         fun toValidOrNull(): Valid? {
             if (!isCoverProfile) return null
@@ -166,7 +158,6 @@ sealed interface ShellyState {
                     position = latestDirection?.endPosition ?: Position.CLOSED,
                     direction = null,
                 ),
-                profiles = profiles,
                 configCover = configCover ?: return null
             )
         }

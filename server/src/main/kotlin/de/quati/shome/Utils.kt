@@ -1,7 +1,10 @@
 package de.quati.shome
 
+import de.quati.shome.model.CronJobTime
 import de.quati.shome.model.Host
 import de.quati.shome.model.NetworkEndpoint
+import de.quati.shome.model.Profile
+import de.quati.shome.model.ProfileId
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import io.ktor.server.application.Application
@@ -11,20 +14,28 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.timeout
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
 import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.NetworkInterface
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.ZoneId
 import javax.jmdns.JmDNS
 import javax.jmdns.ServiceEvent
 import javax.jmdns.ServiceListener
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 fun Inet4Address.toHost(): Host.IPv4 {
@@ -87,3 +98,18 @@ fun searchDevices(timeout: Duration = 5.seconds): Flow<Pair<String?, NetworkEndp
     .timeout(timeout)
     .catch { if (it !is TimeoutCancellationException) throw it }
     .distinctBy { it.second }
+
+@Serializable
+data class DbData(
+    val profiles: Map<ProfileId, Profile> = emptyMap()
+)
+
+fun cronTimeFlow(zoneId: ZoneId) = flow {
+    while (true) {
+        val now = System.currentTimeMillis()
+        val delayMs = 60_000 - (now % 60_000) + 2_000 // plus some delay to avoid race conditions
+        delay(delayMs.milliseconds)
+        val dt = LocalDateTime.now(zoneId)
+        emit(CronJobTime(hour = dt.hour, minute = dt.minute))
+    }
+}.distinctUntilChanged()

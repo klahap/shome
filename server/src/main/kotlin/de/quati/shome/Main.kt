@@ -11,10 +11,12 @@ import de.quati.shome.model.BackendConfig
 import de.quati.shome.model.BackendIntent
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
+import io.ktor.server.application.ApplicationStopped
 import io.ktor.server.application.install
 import io.ktor.server.engine.*
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.application.log
+import kotlinx.coroutines.cancel
 
 /*
 
@@ -59,10 +61,16 @@ suspend fun main(args: Array<String>) = MainCmd().main(args)
 suspend fun Application.rootModule(cmd: MainCmd) {
     val serverConfigContext = cmd.backendConfigContext
     val shellyService = ShellyService(backendConfigContext = serverConfigContext)
+    val dbService = DbService()
     val backendStateService = BackendStateService(
         app = this,
         backendConfigContext = serverConfigContext,
         shellyService = shellyService,
+        dbService = dbService,
+    )
+    val cronJobService = CronJobService(
+        app = this,
+        backendStateService = backendStateService,
     )
 
     install(ContentNegotiation) {
@@ -73,5 +81,10 @@ suspend fun Application.rootModule(cmd: MainCmd) {
 
     cmd.shellySearchEndpoints.toSet().takeIf { it.isNotEmpty() }?.also {
         backendStateService.onIntent(BackendIntent.StartSearchShellys(it))
+    }
+
+    monitor.subscribe(ApplicationStopped) {
+        cronJobService.scope.cancel()
+        backendStateService.scope.cancel()
     }
 }

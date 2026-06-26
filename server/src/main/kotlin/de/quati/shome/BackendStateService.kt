@@ -7,10 +7,8 @@ import de.quati.shome.model.BackendConfig
 import de.quati.shome.model.ShellyState
 import de.quati.shome.model.BackendIntent
 import de.quati.shome.model.BackendState
-import de.quati.shome.model.KvsKey
-import de.quati.shome.model.ProfileName
+import de.quati.shome.model.ProfileId
 import de.quati.shome.model.ShellyIntent
-import de.quati.shome.model.ShellyRpcRequest
 import io.ktor.server.application.Application
 import io.ktor.server.application.log
 import kotlinx.coroutines.CoroutineName
@@ -31,13 +29,26 @@ import kotlin.time.Duration.Companion.milliseconds
 class BackendStateService(
     backendConfigContext: BackendConfig.Context,
     val app: Application,
+    val dbService: DbService,
     val shellyService: ShellyService,
 ) : BackendConfig.Context by backendConfigContext {
-    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob() + CoroutineName("BackendStateService"))
+    val scope = CoroutineScope(Dispatchers.Default + SupervisorJob() + CoroutineName("BackendStateService"))
     val state: StateFlow<BackendState>
         field = MutableStateFlow(BackendState())
 
     init {
+        // update profiles
+        scope.launch {
+            dbService.load()
+            dbService.state.collect { dbData ->
+                state.update {
+                    it.copy(
+                        profiles = dbData.profiles,
+                    )
+                }
+            }
+        }
+
         // position update job
         scope.launch {
             while (true) {
@@ -50,9 +61,9 @@ class BackendStateService(
     suspend fun onIntent(intent: BackendIntent): Any = when (intent) {
         BackendIntent.StartSearchShellysInSubnet -> reloadShellys()
         is BackendIntent.StartSearchShellys -> reloadShellys(intent.endpoints)
-        is BackendIntent.UpsertProfile -> setProfile(intent.name, intent.positions)
-        is BackendIntent.ExecuteProfile -> moveTo(intent.name)
-        is BackendIntent.DeleteProfile -> setProfile(intent.name, emptyMap())
+        is BackendIntent.UpsertProfile -> dbService.upsertProfile(intent.data)
+        is BackendIntent.ExecuteProfile -> moveTo(intent.id)
+        is BackendIntent.DeleteProfile -> dbService.deleteProfile(intent.id)
         is BackendIntent.Shelly -> when (val sIntent = intent.intent) {
             ShellyIntent.Delete -> state.update { s -> s.copy(shellys = s.shellys - intent.mac) }
             ShellyIntent.Reload -> reloadShelly(intent.mac)
@@ -62,34 +73,6 @@ class BackendStateService(
         }
     }.also {
         app.log.info("finished onIntent: $intent")
-    }
-
-    suspend fun setProfile(name: ProfileName, positions: Map<Mac, Position>) {
-        val before = state.value.shellys.mapNotNull { (k, v) ->
-            val pos = v.profiles[name] ?: return@mapNotNull null
-            k to pos
-        }.toMap()
-
-        val toDelete = before.keys - positions.keys
-        val toUpsert = positions.filter { (k, v) -> before[k] != v }
-
-        toDelete.forEach { mac -> // TODO parallel?
-            val ip = mac.ipOrNull ?: return@forEach
-            shellyService.deleteKvs(ip, KvsKey.Profile(name))
-        }
-        toUpsert.forEach { (mac, position) -> // TODO parallel?
-            val ip = mac.ipOrNull ?: return@forEach
-            shellyService.setKvs(ip, ShellyRpcRequest.Params.KvsEntry.profile(name, position))
-        }
-        state.update { s ->
-            val newShellys = s.shellys.mapValues { (_, state) ->
-                if (state.mac in toDelete)
-                    return@mapValues state.update(profiles = state.profiles - name)
-                val newPos = toUpsert[state.mac] ?: return@mapValues state
-                state.update(profiles = state.profiles + (name to newPos))
-            }
-            s.copy(shellys = newShellys)
-        }
     }
 
     fun updatePositions(): Boolean {
@@ -110,11 +93,8 @@ class BackendStateService(
         return true
     }
 
-    private suspend fun moveTo(name: ProfileName) {
-        val positions = state.value.shellys.mapNotNull { (k, v) ->
-            val pos = v.profiles[name] ?: return@mapNotNull null
-            k to pos
-        }.toMap()
+    private suspend fun moveTo(id: ProfileId) {
+        val positions = dbService.loadProfile(id)?.positions ?: return
         positions.map { (mac, pos) ->
             scope.async { moveTo(mac, pos) }
         }.awaitAll()

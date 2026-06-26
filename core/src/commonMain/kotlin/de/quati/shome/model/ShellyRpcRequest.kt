@@ -6,7 +6,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.decodeFromJsonElement
-import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.longOrNull
 import kotlin.time.Duration
@@ -72,13 +71,6 @@ data class ShellyRpcRequest(
                 return (value as? JsonPrimitive)?.longOrNull?.milliseconds
             }
 
-            val profileOrNull: Pair<ProfileName, Position>?
-                get() {
-                    if (key !is KvsKey.Profile) return null
-                    val position = (value as? JsonPrimitive)?.doubleOrNull?.let(::Position) ?: return null
-                    return key.name to position
-                }
-
             companion object {
                 fun totalDuration(direction: Direction, duration: Duration) = KvsEntry(
                     key = when (direction) {
@@ -86,11 +78,6 @@ data class ShellyRpcRequest(
                         Direction.CLOSE -> KvsKey.TotalMsClose
                     },
                     value = JsonPrimitive(duration.inWholeMilliseconds),
-                )
-
-                fun profile(name: ProfileName, position: Position) = KvsEntry(
-                    key = KvsKey.Profile(name),
-                    value = JsonPrimitive(position.value),
                 )
             }
         }

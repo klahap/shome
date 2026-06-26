@@ -3,6 +3,7 @@
 .gradle
 .junie
 logs/
+db.json
 static/
 **/build/
 xcuserdata

@@ -78,7 +78,7 @@ fun App(viewModel: AppViewModel = viewModel { AppViewModel() }) {
                     )
 
                     Screen.ProfileCrud -> ProfileSection(
-                        profiles = state.profiles,
+                        profiles = state.profiles.values.toList(),
                         shellys = state.shellys.values.toList(),
                         onIntent = { viewModel.sendIntent(it) },
                     )

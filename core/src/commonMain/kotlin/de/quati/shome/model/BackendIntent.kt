@@ -13,16 +13,14 @@ sealed interface BackendIntent {
 
     @Serializable
     data class UpsertProfile(
-        val name: ProfileName,
-        val positions: Map<Mac, Position>
+        val data: Profile,
     ) : BackendIntent
 
+    @Serializable
+    data class ExecuteProfile(val id: ProfileId) : BackendIntent
 
     @Serializable
-    data class ExecuteProfile(val name: ProfileName) : BackendIntent
-
-    @Serializable
-    data class DeleteProfile(val name: ProfileName) : BackendIntent
+    data class DeleteProfile(val id: ProfileId) : BackendIntent
 
     @Serializable
     data class Shelly(

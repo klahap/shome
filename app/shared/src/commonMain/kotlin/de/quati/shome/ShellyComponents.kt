@@ -278,7 +278,6 @@ fun ShellyConfigSection(
     fun String.isValidTotalDuration() = toDoubleOrNull()?.let { it > 0.0 } ?: false
     fun String.isValidMaxDuration() = toDoubleOrNull()?.let { it in 0.1..300.0 } ?: false
 
-
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (!shelly.isCoverProfile) {
             Row(

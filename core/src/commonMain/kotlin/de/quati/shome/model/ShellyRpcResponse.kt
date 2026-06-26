@@ -39,7 +39,6 @@ data class ShellyRpcResponse(
             val offset: Int,
             val total: Int,
         ) : Params {
-            val profiles get() = items.mapNotNull { it.profileOrNull }.toMap()
             fun totalDuration(direction: Direction) =
                 items.firstNotNullOfOrNull { it.totalDurationValueOrNull(direction) }
 

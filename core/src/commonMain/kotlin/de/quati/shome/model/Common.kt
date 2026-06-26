@@ -11,6 +11,7 @@ import kotlinx.serialization.encoding.Encoder
 import kotlin.jvm.JvmInline
 import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
+import kotlin.uuid.Uuid
 
 
 @Serializable
@@ -103,6 +104,12 @@ data class NetworkEndpoint(
 
 @JvmInline
 @Serializable
+value class ProfileId(val value: String) {
+    constructor() : this(Uuid.random().toString())
+}
+
+@JvmInline
+@Serializable
 value class Mac(val value: String) {
     override fun toString() = value
 }
@@ -118,16 +125,6 @@ value class Distance(val value: Double) {
 sealed interface KvsKey {
     val keyValue: String
     val isValid get() = keyValue.length in 1..42
-
-    companion object {
-        private const val PROFILE_PREFIX = "qp_"
-    }
-
-    @JvmInline
-    value class Profile(val name: ProfileName) : KvsKey {
-        override val keyValue get() = PROFILE_PREFIX + name.value
-        override fun toString() = keyValue
-    }
 
     @JvmInline
     value class Other(val value: String) : KvsKey {
@@ -154,24 +151,13 @@ sealed interface KvsKey {
             encoder.encodeString(value.keyValue)
         }
 
-        override fun deserialize(decoder: Decoder): KvsKey {
-            val v = decoder.decodeString()
-            return when {
-                v == TotalMsOpen.keyValue -> TotalMsOpen
-                v == TotalMsClose.keyValue -> TotalMsClose
-                v.startsWith(PROFILE_PREFIX) -> Profile(ProfileName(v.removePrefix(PROFILE_PREFIX)))
-                else -> Other(v)
-            }
+        override fun deserialize(decoder: Decoder): KvsKey = when (val v = decoder.decodeString()) {
+            TotalMsOpen.keyValue -> TotalMsOpen
+            TotalMsClose.keyValue -> TotalMsClose
+            else -> Other(v)
         }
     }
 
-}
-
-@JvmInline
-@Serializable
-value class ProfileName(val value: String) {
-    val kvsKey get() = KvsKey.Profile(this)
-    val isValid get() = kvsKey.isValid
 }
 
 @JvmInline
@@ -308,5 +294,17 @@ sealed interface WebhookEventType {
             val v = decoder.decodeString()
             return entries.find { it.value == v } ?: throw SerializationException("Unknown Quati event type: $v")
         }
+    }
+}
+
+@Serializable
+data class CronJobTime(
+    val hour: Int,
+    val minute: Int,
+) {
+    fun plusMinute(): CronJobTime {
+        val newMinute = (minute + 1) % 60
+        val newHour = hour + (minute + 1) / 60
+        return CronJobTime(newHour, newMinute)
     }
 }
