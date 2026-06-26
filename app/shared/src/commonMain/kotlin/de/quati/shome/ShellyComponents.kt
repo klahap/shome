@@ -278,14 +278,28 @@ fun ShellyConfigSection(
     fun String.isValidTotalDuration() = toDoubleOrNull()?.let { it > 0.0 } ?: false
     fun String.isValidMaxDuration() = toDoubleOrNull()?.let { it in 0.1..300.0 } ?: false
 
-    if (!shelly.isCoverProfile) {
-        Column {
-            Text("Shelly cannot be used with this profile, please use a 'cover' profile")
-        }
-        return
-    }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (!shelly.isCoverProfile) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                Text("Shelly cannot be used with this profile, please use a 'cover' profile")
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                Button(
+                    onClick = { onIntent(ShellyIntent.Reload) },
+                ) {
+                    Text("Reload")
+                }
+            }
+            return
+        }
+
         OutlinedTextField(
             value = name,
             onValueChange = { name = it },
