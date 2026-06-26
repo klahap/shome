@@ -8,8 +8,11 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import kotlin.io.path.Path
 import kotlin.io.path.exists
+import kotlin.io.path.name
 import kotlin.io.path.readText
 import kotlin.io.path.writeText
 
@@ -38,7 +41,14 @@ class DbService {
             ?.let { json.decodeFromString<DbData>(it) }
             ?: DbData()
         val newData = block(oldData)
-        newData?.let { json.encodeToString(it) }?.let { path.writeText(it) }
+        newData?.let { json.encodeToString(it) }?.also { text ->
+            val tmp = path.resolveSibling("${path.name}.tmp").also { it.writeText(text) }
+            Files.move(
+                tmp, path,
+                StandardCopyOption.ATOMIC_MOVE,
+                StandardCopyOption.REPLACE_EXISTING
+            )
+        }
         (newData ?: oldData).also { currentData ->
             state.update { currentData }
         }

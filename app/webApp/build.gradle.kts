@@ -27,7 +27,7 @@ kotlin {
     }
 }
 
-val staticDst = rootProject.layout.projectDirectory.dir("static")
+val staticDst = rootProject.layout.projectDirectory.dir("server/src/main/resources/static")
 val cleanWasmDistribution by tasks.registering(Delete::class) {
     description = "clean wasm distribution in server resources"
     delete(staticDst)

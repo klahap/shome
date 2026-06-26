@@ -4,6 +4,7 @@
 .junie
 logs/
 db.json
+db.json.tmp
 static/
 **/build/
 xcuserdata

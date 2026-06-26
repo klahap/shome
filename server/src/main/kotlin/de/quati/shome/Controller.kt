@@ -8,7 +8,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.log
-import io.ktor.server.http.content.staticFiles
+import io.ktor.server.http.content.staticResources
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondBytesWriter
@@ -17,18 +17,16 @@ import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
 import io.ktor.utils.io.writeStringUtf8
 import kotlinx.serialization.json.Json
-import java.io.File
 import kotlin.time.Clock
 
 
 fun Application.addController(backendStateService: BackendStateService) {
     val ndJsonContentType = ContentType.parse("application/x-ndjson")
     routing {
-        staticFiles(
+        staticResources(
             remotePath = "/",
-            dir = File("./static")
+            basePackage = "/static",
         )
-
         get("/api/state") {
             call.respondBytesWriter(contentType = ndJsonContentType) {
                 backendStateService.state.collect { state ->

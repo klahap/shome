@@ -168,6 +168,7 @@ fun ProfileEditDialog(
                     onValueChange = { profileName = it },
                     label = { Text("Profile Name") },
                     isError =  profileName.isBlank(),
+                    singleLine = true,
                     supportingText = {
                         if ( profileName.isBlank()) Text("Profile name is to long")
                     },

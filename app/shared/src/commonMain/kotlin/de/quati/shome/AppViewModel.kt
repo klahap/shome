@@ -29,6 +29,7 @@ import kotlinx.serialization.json.Json
 import kotlin.time.Duration.Companion.milliseconds
 
 expect fun getHost(): String
+expect fun getPort(): Int?
 
 class AppViewModel : ViewModel() {
     private val json: Json = Json
@@ -37,7 +38,7 @@ class AppViewModel : ViewModel() {
         install(ContentNegotiation) { json(json) }
         defaultRequest {
             host = getHost()
-            port = Const.BACKEND_PORT
+            getPort()?.also { port = it }
         }
     }
 

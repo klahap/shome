@@ -302,6 +302,7 @@ fun ShellyConfigSection(
         OutlinedTextField(
             value = name,
             onValueChange = { name = it },
+            singleLine = true,
             label = { Text("Name") },
             modifier = Modifier.fillMaxWidth(),
         )
