@@ -7,7 +7,6 @@ plugins {
 }
 
 group = "de.quati.shome"
-version = "1.0.0"
 application {
     mainClass = "de.quati.shome.MainKt"
 }

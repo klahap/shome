@@ -7,3 +7,7 @@ plugins {
     alias(libs.plugins.kotlinMultiplatform) apply false
     alias(libs.plugins.ktor) apply false
 }
+
+allprojects {
+    version = System.getenv("APP_VERSION") ?: "0.0.1"
+}

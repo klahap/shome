@@ -53,6 +53,7 @@ class MainCmd : SuspendingCliktCommand() {
             host = "0.0.0.0",
             module = {
                 rootModule(cmd = this@MainCmd)
+                log.info("SHome version ${BuildInfo.VERSION} starting...")
                 log.info("Responding at http://${backendConfigContext.backendConfig.backendEndpoint}")
             }
         ).startSuspend(wait = true)
