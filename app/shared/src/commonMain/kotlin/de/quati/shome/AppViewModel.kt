@@ -17,7 +17,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
-import io.ktor.utils.io.CancellationException
+import kotlinx.coroutines.CancellationException
 import io.ktor.utils.io.readLine
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -43,7 +43,7 @@ class AppViewModel : ViewModel() {
     }
 
     val errors: SharedFlow<String>
-        field = MutableSharedFlow()
+        field = MutableSharedFlow(extraBufferCapacity = 64)
 
     val state = MutableStateFlow(BackendState(
         otfState = BackendState.OtfState.DISABLED,
@@ -51,7 +51,12 @@ class AppViewModel : ViewModel() {
         viewModelScope.launch {
             while (true) {
                 try {
+                    println("fetching state...")
                     httpClient.prepareGet(Api.State()).execute { response ->
+                        if (!response.status.isSuccess()) {
+                            errors.tryEmit("Connection error: ${response.status}")
+                            return@execute
+                        }
                         val channel = response.bodyAsChannel()
                         while (!channel.isClosedForRead) {
                             val line = channel.readLine() ?: break
@@ -59,11 +64,13 @@ class AppViewModel : ViewModel() {
                         }
                     }
                 } catch (e: CancellationException) {
+                    println("cancel")
                     throw e
-                } catch (e: Exception) {
-                    errors.emit("Connection error: ${e.message}")
-                    delay(2000.milliseconds)
+                } catch (t: Throwable) {
+                    errors.tryEmit("Connection error: ${t.message ?: t.toString()}")
                 }
+                println("retrying in 2s...")
+                delay(2000.milliseconds)
             }
         }
     }.asStateFlow()
@@ -74,11 +81,12 @@ class AppViewModel : ViewModel() {
                 contentType(ContentType.Application.Json)
                 setBody(intent)
             }
-        } catch (e: Exception) {
-            errors.emit("Failed to send command: ${e.message}")
+        } catch (t: Throwable) {
+            if (t is CancellationException) throw t
+            errors.tryEmit("Failed to send command: ${t.message ?: t.toString()}")
             return@launch
         }
         if (!res.status.isSuccess())
-            errors.emit("Command failed with status: ${res.status}")
+            errors.tryEmit("Command failed with status: ${res.status}")
     }
 }

@@ -25,6 +25,9 @@ dependencies {
     implementation(libs.clikt)
     implementation(libs.jmdns)
     implementation(libs.kotlinx.serialization)
+    implementation(libs.exposed.core)
+    implementation(libs.exposed.jdbc)
+    implementation(libs.sqlite.jdbc)
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.kotlin.testJunit)
 }

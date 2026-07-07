@@ -3,8 +3,7 @@
 .gradle
 .junie
 logs/
-db.json
-db.json.tmp
+db.sqlite
 server.jar
 static/
 **/build/

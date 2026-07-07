@@ -68,7 +68,7 @@ suspend fun main(args: Array<String>) = MainCmd().main(args)
 suspend fun Application.rootModule(cmd: MainCmd) {
     val serverConfigContext = cmd.backendConfigContext
     val shellyService = ShellyService(backendConfigContext = serverConfigContext)
-    val dbService = DbService()
+    val profileDbService = ProfileDbService()
     val otfService = cmd.jarPath?.toPath()?.let {
         log.info("OTF service enabled")
         OtfService(jarPath = it)
@@ -77,7 +77,7 @@ suspend fun Application.rootModule(cmd: MainCmd) {
         app = this,
         backendConfigContext = serverConfigContext,
         shellyService = shellyService,
-        dbService = dbService,
+        profileDbService = profileDbService,
         otfService = otfService,
     )
     val cronJobService = CronJobService(

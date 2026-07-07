@@ -29,7 +29,7 @@ import kotlin.time.Duration.Companion.milliseconds
 class BackendStateService(
     backendConfigContext: BackendConfig.Context,
     val app: Application,
-    val dbService: DbService,
+    val profileDbService: ProfileDbService,
     val shellyService: ShellyService,
     val otfService: OtfService?,
 ) : BackendConfig.Context by backendConfigContext {
@@ -47,12 +47,9 @@ class BackendStateService(
     init {
         // update profiles
         scope.launch {
-            dbService.load()
-            dbService.state.collect { dbData ->
+            profileDbService.profileState.collect { profiles ->
                 state.update {
-                    it.copy(
-                        profiles = dbData.profiles,
-                    )
+                    it.copy(profiles = profiles)
                 }
             }
         }
@@ -87,9 +84,9 @@ class BackendStateService(
         }
 
         is BackendIntent.StartSearchShellys -> reloadShellys(intent.endpoints)
-        is BackendIntent.UpsertProfile -> dbService.upsertProfile(intent.data)
+        is BackendIntent.UpsertProfile -> profileDbService.upsertProfile(intent.data)
         is BackendIntent.ExecuteProfile -> moveTo(intent.id)
-        is BackendIntent.DeleteProfile -> dbService.deleteProfile(intent.id)
+        is BackendIntent.DeleteProfile -> profileDbService.deleteProfile(intent.id)
         is BackendIntent.Shelly -> when (val sIntent = intent.intent) {
             ShellyIntent.Delete -> state.update { s -> s.copy(shellys = s.shellys - intent.mac) }
             ShellyIntent.Reload -> reloadShelly(intent.mac)
@@ -120,7 +117,7 @@ class BackendStateService(
     }
 
     private suspend fun moveTo(id: ProfileId) {
-        val positions = dbService.loadProfile(id)?.positions ?: return
+        val positions = profileDbService.profileState.value[id]?.positions ?: return
         positions.map { (mac, pos) ->
             scope.async { moveTo(mac, pos) }
         }.awaitAll()

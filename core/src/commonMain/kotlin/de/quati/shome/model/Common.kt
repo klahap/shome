@@ -307,4 +307,17 @@ data class CronJobTime(
         val newHour = hour + (minute + 1) / 60
         return CronJobTime(newHour, newMinute)
     }
+
+    override fun toString(): String = "${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}"
+
+    companion object {
+        fun parse(s: String): CronJobTime? {
+            val parts = s.split(":")
+            if (parts.size != 2) return null
+            val h = parts[0].toIntOrNull() ?: return null
+            val m = parts[1].toIntOrNull() ?: return null
+            if (h !in 0..23 || m !in 0..59) return null
+            return CronJobTime(h, m)
+        }
+    }
 }
