@@ -16,6 +16,8 @@ import io.ktor.client.statement.bodyAsChannel
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
+import io.ktor.resources.href
+import io.ktor.resources.serialization.ResourcesFormat
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CancellationException
 import io.ktor.utils.io.readLine
@@ -30,6 +32,7 @@ import kotlin.time.Duration.Companion.milliseconds
 
 expect fun getHost(): String
 expect fun getPort(): Int?
+expect fun openUrl(url: String)
 
 class AppViewModel : ViewModel() {
     private val json: Json = Json
@@ -88,5 +91,9 @@ class AppViewModel : ViewModel() {
         }
         if (!res.status.isSuccess())
             errors.tryEmit("Command failed with status: ${res.status}")
+    }
+
+    fun downloadLogs() {
+        openUrl(href(ResourcesFormat(), Api.Logs()))
     }
 }

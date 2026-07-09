@@ -74,14 +74,12 @@ suspend fun Application.rootModule(cmd: MainCmd) {
         OtfService(jarPath = it)
     }
     val backendStateService = BackendStateService(
-        app = this,
         backendConfigContext = serverConfigContext,
         shellyService = shellyService,
         profileDbService = profileDbService,
         otfService = otfService,
     )
     val cronJobService = CronJobService(
-        app = this,
         backendStateService = backendStateService,
     )
 

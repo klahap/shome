@@ -3,8 +3,6 @@ package de.quati.shome
 import de.quati.shome.model.CronJobTime
 import de.quati.shome.model.Host
 import de.quati.shome.model.NetworkEndpoint
-import de.quati.shome.model.Profile
-import de.quati.shome.model.ProfileId
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
@@ -29,8 +27,8 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.timeout
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.Serializable
 import java.io.BufferedOutputStream
+import java.io.File
 import java.io.OutputStream
 import java.net.Inet4Address
 import java.net.InetAddress
@@ -40,6 +38,7 @@ import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.util.zip.GZIPInputStream
 import javax.jmdns.JmDNS
 import javax.jmdns.ServiceEvent
 import javax.jmdns.ServiceListener
@@ -109,11 +108,6 @@ fun searchDevices(timeout: Duration = 5.seconds): Flow<Pair<String?, NetworkEndp
     .catch { if (it !is TimeoutCancellationException) throw it }
     .distinctBy { it.second }
 
-@Serializable
-data class DbData(
-    val profiles: Map<ProfileId, Profile> = emptyMap()
-)
-
 fun cronTimeFlow(zoneId: ZoneId) = flow {
     while (true) {
         val now = System.currentTimeMillis()
@@ -155,4 +149,19 @@ suspend fun HttpClient.downloadFile(url: String, output: OutputStream) {
         }
         output.flush()
     }
+}
+
+suspend fun logStream(out: OutputStream) = withContext(Dispatchers.IO) {
+    File("./logs").takeIf { it.exists() }
+        ?.listFiles { it.name.startsWith("shome.") }
+        ?.filterNotNull()
+        ?.sortedBy { it.name }
+        ?.forEach { file ->
+            val input = if (file.name.endsWith(".gz"))
+                GZIPInputStream(file.inputStream())
+            else
+                file.inputStream()
+            input.use { it.copyTo(out) }
+        }
+    Unit
 }

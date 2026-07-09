@@ -7,13 +7,13 @@ import kotlinx.serialization.Serializable
 sealed interface BackendIntent {
 
     @Serializable
-    object OTFRun : BackendIntent
+    data object OTFRun : BackendIntent
 
     @Serializable
-    object OTFSearchLatestVersion : BackendIntent
+    data object OTFSearchLatestVersion : BackendIntent
 
     @Serializable
-    object StartSearchShellysInSubnet : BackendIntent
+    data object StartSearchShellysInSubnet : BackendIntent
 
     @Serializable
     data class StartSearchShellys(val endpoints: Set<NetworkEndpoint>) : BackendIntent

@@ -4,14 +4,18 @@ import de.quati.shome.model.Mac
 import de.quati.shome.model.BackendIntent
 import de.quati.shome.model.ShellyIntent
 import de.quati.shome.model.WebhookEventType
+import io.ktor.http.ContentDisposition
 import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.log
 import io.ktor.server.http.content.staticResources
 import io.ktor.server.request.receive
+import io.ktor.server.response.header
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondBytesWriter
+import io.ktor.server.response.respondOutputStream
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
@@ -27,6 +31,20 @@ fun Application.addController(backendStateService: BackendStateService) {
             remotePath = "/",
             basePackage = "/static",
         )
+
+        get("/api/logs") {
+            call.response.header(
+                HttpHeaders.ContentDisposition,
+                ContentDisposition.Attachment.withParameter(
+                    ContentDisposition.Parameters.FileName,
+                    "shome.log",
+                ).toString()
+            )
+            call.respondOutputStream(ContentType.Text.Plain) {
+                logStream(this)
+            }
+        }
+
         get("/api/state") {
             call.respondBytesWriter(contentType = ndJsonContentType) {
                 backendStateService.state.collect { state ->

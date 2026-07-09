@@ -1,20 +1,21 @@
 package de.quati.shome
 
 import de.quati.shome.model.BackendIntent
-import io.ktor.server.application.Application
-import io.ktor.server.application.log
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import org.slf4j.LoggerFactory
 import java.time.ZoneId
 
 class CronJobService(
-    private val app: Application,
     private val backendStateService: BackendStateService,
     private val timeZoneId: ZoneId = ZoneId.of("Europe/Berlin"),
 ) {
+    companion object {
+        private val log = LoggerFactory.getLogger(CronJobService::class.java)!!
+    }
     val scope = CoroutineScope(Dispatchers.Default + SupervisorJob() + CoroutineName("CronJobService"))
 
     init {
@@ -30,10 +31,9 @@ class CronJobService(
                             }
                         }
                 } catch (e: Exception) {
-                    app.log.error("Error executing cron job", e)
+                    log.error("Error executing cron job", e)
                 }
             }
         }
-
     }
 }

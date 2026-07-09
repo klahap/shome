@@ -9,8 +9,6 @@ import de.quati.shome.model.BackendIntent
 import de.quati.shome.model.BackendState
 import de.quati.shome.model.ProfileId
 import de.quati.shome.model.ShellyIntent
-import io.ktor.server.application.Application
-import io.ktor.server.application.log
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,17 +20,21 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.slf4j.LoggerFactory
 import kotlin.collections.plus
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
 
 class BackendStateService(
     backendConfigContext: BackendConfig.Context,
-    val app: Application,
     val profileDbService: ProfileDbService,
     val shellyService: ShellyService,
     val otfService: OtfService?,
 ) : BackendConfig.Context by backendConfigContext {
+    companion object {
+        private val log = LoggerFactory.getLogger(BackendStateService::class.java)!!
+    }
+
     val scope = CoroutineScope(Dispatchers.Default + SupervisorJob() + CoroutineName("BackendStateService"))
     private val defaultOtfState = if (otfService == null) BackendState.OtfState.DISABLED
     else BackendState.OtfState.ENABLED
@@ -95,7 +97,7 @@ class BackendStateService(
             is ShellyIntent.Update -> updateShelly(intent.mac, sIntent)
         }
     }.also {
-        app.log.info("finished onIntent: $intent")
+        log.info("finished onIntent: $intent")
     }
 
     fun updatePositions(): Boolean {
@@ -178,7 +180,7 @@ class BackendStateService(
         endpoints: Set<NetworkEndpoint> = getSubnetEndpoints(),
     ) {
         state.update { it.copy(shellySearchState = BackendState.ShellySearchState.Searching) }
-        app.log.info("searching for shellys (${endpoints.size} endpoints)")
+        log.info("searching for shellys (${endpoints.size} endpoints)")
         val newShellyStates = shellyService.findAllShellys(endpoints = endpoints)
             .associateBy { it.mac }
         state.update { s ->
@@ -193,7 +195,7 @@ class BackendStateService(
                 ),
             )
         }
-        app.log.info("${newShellyStates.size} shellys updated")
+        log.info("${newShellyStates.size} shellys updated")
     }
 
     private fun updateShellyState(mac: Mac, block: (ShellyState) -> ShellyState) = state.update { backendState ->
