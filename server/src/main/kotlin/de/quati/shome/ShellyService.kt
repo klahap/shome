@@ -147,13 +147,13 @@ class ShellyService(
 
     suspend fun findAllShellys(endpoints: Set<NetworkEndpoint>) = coroutineScope {
         val semaphore = Semaphore(32)
-        endpoints.map {
+        endpoints.map { ip ->
             async(Dispatchers.IO) {
                 semaphore.withPermit {
-                    findShelly(it)
+                    findShelly(ip)?.let { ip to it }
                 }
             }
-        }.awaitAll().filterNotNull()
+        }.awaitAll().filterNotNull().toMap()
     }
 
     private suspend inline fun <reified T : ShellyRpcResponse.Params> HttpResponse.parse(): T {

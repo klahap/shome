@@ -7,6 +7,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -38,6 +39,7 @@ fun App(viewModel: AppViewModel = viewModel { AppViewModel() }) {
     val snackbarHostState = remember { SnackbarHostState() }
     var currentScreen by remember { mutableStateOf(Screen.ShellyControl) }
     var showSettingsDialog by remember { mutableStateOf(false) }
+    var showSearchDialog by remember { mutableStateOf(false) }
     val colorScheme = when (isSystemInDarkTheme()) {
         true -> darkColorScheme()
         false -> lightColorScheme()
@@ -55,6 +57,14 @@ fun App(viewModel: AppViewModel = viewModel { AppViewModel() }) {
                 CenterAlignedTopAppBar(
                     title = { Text(currentScreen.title) },
                     actions = {
+                        if (currentScreen == Screen.ShellyControl) {
+                            IconButton(onClick = { showSearchDialog = true }) {
+                                Icon(
+                                    Icons.Default.Search,
+                                    contentDescription = "Search Shellys",
+                                )
+                            }
+                        }
                         IconButton(onClick = { showSettingsDialog = true }) {
                             Icon(
                                 Icons.Default.Settings,
@@ -103,6 +113,13 @@ fun App(viewModel: AppViewModel = viewModel { AppViewModel() }) {
                     )
                 }
             }
+        }
+        if (showSearchDialog) {
+            ShellySearchDialog(
+                state = state,
+                onIntent = { viewModel.sendIntent(it) },
+                onDismiss = { showSearchDialog = false },
+            )
         }
         if (showSettingsDialog) {
             AlertDialog(

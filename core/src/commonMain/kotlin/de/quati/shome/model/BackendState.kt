@@ -1,6 +1,7 @@
 package de.quati.shome.model
 
 import kotlinx.serialization.Serializable
+import kotlin.uuid.Uuid
 
 
 @Serializable
@@ -11,6 +12,7 @@ data class BackendState(
     val shellySearchState: ShellySearchState = ShellySearchState.None,
     val shellys: Map<Mac, ShellyState> = emptyMap(),
     val profiles: Map<ProfileId, Profile> = emptyMap(),
+    val latestBackendError: Pair<Uuid, String>? = null,
 ) {
     @Serializable
     enum class OtfState {

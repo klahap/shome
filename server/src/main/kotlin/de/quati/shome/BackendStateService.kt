@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory
 import kotlin.collections.plus
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.uuid.Uuid
 
 class BackendStateService(
     backendConfigContext: BackendConfig.Context,
@@ -66,7 +67,15 @@ class BackendStateService(
     }
 
     suspend fun onIntent(intent: BackendIntent): Any = when (intent) {
-        BackendIntent.StartSearchShellysInSubnet -> reloadShellys()
+        BackendIntent.StartSearchShellysInSubnet -> reloadShellys(silent = true)
+        is BackendIntent.ClearError -> {
+            state.update {
+                if (it.latestBackendError?.first == intent.id)
+                    it.copy(latestBackendError = null)
+                else it
+            }
+        }
+
         BackendIntent.OTFSearchLatestVersion -> {
             state.update { it.copy(otfState = BackendState.OtfState.SEARCHING) }
             val version = otfService?.searchLatestVersion()
@@ -178,11 +187,19 @@ class BackendStateService(
 
     private suspend fun reloadShellys(
         endpoints: Set<NetworkEndpoint> = getSubnetEndpoints(),
+        silent: Boolean = false,
     ) {
         state.update { it.copy(shellySearchState = BackendState.ShellySearchState.Searching) }
         log.info("searching for shellys (${endpoints.size} endpoints)")
-        val newShellyStates = shellyService.findAllShellys(endpoints = endpoints)
-            .associateBy { it.mac }
+        val shellysFound = shellyService.findAllShellys(endpoints = endpoints)
+        val newShellyStates = shellysFound.values.associateBy { it.mac }
+
+        val notFound = endpoints - shellysFound.keys
+
+        val errorMsg = if (!silent && notFound.isNotEmpty())
+            Uuid.random() to "Shelly(s) not found: ${notFound.joinToString(", ")}"
+        else null
+
         state.update { s ->
             val newShellys = s.shellys.mapValues {
                 it.value.update(newShellyStates[it.key])
@@ -193,6 +210,7 @@ class BackendStateService(
                     macBefore = s.shellys.keys,
                     macFound = newShellyStates.keys,
                 ),
+                latestBackendError = errorMsg,
             )
         }
         log.info("${newShellyStates.size} shellys updated")

@@ -26,6 +26,11 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlin.time.Duration.Companion.milliseconds
@@ -48,9 +53,11 @@ class AppViewModel : ViewModel() {
     val errors: SharedFlow<String>
         field = MutableSharedFlow(extraBufferCapacity = 64)
 
-    val state = MutableStateFlow(BackendState(
-        otfState = BackendState.OtfState.DISABLED,
-    )).also { stateFlow ->
+    val state = MutableStateFlow(
+        BackendState(
+            otfState = BackendState.OtfState.DISABLED,
+        )
+    ).also { stateFlow ->
         viewModelScope.launch {
             while (true) {
                 try {
@@ -91,6 +98,16 @@ class AppViewModel : ViewModel() {
         }
         if (!res.status.isSuccess())
             errors.tryEmit("Command failed with status: ${res.status}")
+    }
+
+    init {
+        state.map { it.latestBackendError }
+            .distinctUntilChanged()
+            .filterNotNull()
+            .onEach {
+                errors.tryEmit(it.second)
+                sendIntent(BackendIntent.ClearError(it.first))
+            }.launchIn(viewModelScope)
     }
 
     fun downloadLogs() {

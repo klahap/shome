@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -16,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -27,23 +29,18 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.DurationUnit
 
+private fun String.isIpv4() = split(".")
+    .takeIf { it.size == 4 }
+    ?.mapNotNull { it.toIntOrNull() }
+    ?.takeIf { it.size == 4 }
+    ?.all { it in 0..255 }
+    ?: false
 
 @Composable
 fun ShellySection(
     state: BackendState,
     onIntent: (BackendIntent) -> Unit,
 ) {
-    if (state.shellySearchState is BackendState.ShellySearchState.Searching) {
-        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-    } else {
-        Button(
-            onClick = { onIntent(BackendIntent.StartSearchShellysInSubnet) },
-        ) {
-            Text("Search Shellys")
-        }
-    }
-    Spacer(modifier = Modifier.height(8.dp))
-
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = 300.dp),
         contentPadding = PaddingValues(16.dp),
@@ -58,6 +55,91 @@ fun ShellySection(
             )
         }
     }
+}
+
+@Composable
+fun ShellySearchDialog(
+    state: BackendState,
+    onIntent: (BackendIntent) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val searching = state.shellySearchState is BackendState.ShellySearchState.Searching
+    var searchIp by remember { mutableStateOf("") }
+    fun searchByIp() {
+        if (searchIp.isNotBlank()) onIntent(BackendIntent.StartSearchShellys(setOf(NetworkEndpoint.parse(searchIp))))
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Search Shellys") },
+        text = {
+            Column {
+                Text(
+                    "Search entire subnet",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    enabled = !searching,
+                    onClick = { onIntent(BackendIntent.StartSearchShellysInSubnet) },
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = null,
+                        modifier = Modifier.size(ButtonDefaults.IconSize)
+                    )
+                    Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+                    Text("Search Subnet")
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    "Search by IP",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = searchIp,
+                    onValueChange = { searchIp = it },
+                    singleLine = true,
+                    label = { Text("IP address") },
+                    placeholder = { Text("192.168.1.42") },
+                    enabled = !searching,
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = searchIp.isNotEmpty() && !searchIp.isIpv4(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { searchByIp() }),
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    enabled = !searching && searchIp.isIpv4(),
+                    onClick = { searchByIp() },
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = null,
+                        modifier = Modifier.size(ButtonDefaults.IconSize)
+                    )
+                    Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+                    Text("Search")
+                }
+
+                if (searching) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
+            }
+        },
+        confirmButton = {
+            if (!searching)
+                TextButton(onClick = onDismiss) {
+                    Text("Close")
+                }
+        }
+    )
 }
 
 @Composable
