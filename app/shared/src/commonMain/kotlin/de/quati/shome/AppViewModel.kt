@@ -83,7 +83,7 @@ class AppViewModel : ViewModel() {
                     println("fetching state...")
                     httpClient.prepareGet(Api.State()).execute { response ->
                         if (!response.status.isSuccess()) {
-                            error("Connection error: ${response.status}")
+                            println("Connection error: ${response.status}")
                             return@execute
                         }
                         val channel = response.bodyAsChannel()
@@ -105,7 +105,7 @@ class AppViewModel : ViewModel() {
                     println("cancel")
                     throw e
                 } catch (t: Throwable) {
-                    error("Connection error: ${t.message ?: t.toString()}")
+                    println("Connection error: ${t.message ?: t.toString()}")
                 }
                 println("retrying in ${retryDelay.currentDelay}...")
                 retryDelay.wait()
