@@ -35,7 +35,3 @@ dependencies {
 tasks.named("processResources") {
     dependsOn(":app:webApp:copyWasmDistributionDev")
 }
-val compileKotlin: KotlinCompile by tasks
-compileKotlin.compilerOptions {
-    freeCompilerArgs.set(listOf("-Xexplicit-backing-fields"))
-}

@@ -6,17 +6,22 @@ import de.quati.shome.model.Position
 import de.quati.shome.model.BackendConfig
 import de.quati.shome.model.ShellyState
 import de.quati.shome.model.BackendIntent
-import de.quati.shome.model.BackendState
+import de.quati.shome.model.BackendMessage
+import de.quati.shome.model.OtfState
 import de.quati.shome.model.ProfileId
 import de.quati.shome.model.ShellyIntent
+import io.ktor.utils.io.CancellationException
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -24,7 +29,7 @@ import org.slf4j.LoggerFactory
 import kotlin.collections.plus
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
-import kotlin.uuid.Uuid
+import kotlin.time.Duration.Companion.seconds
 
 class BackendStateService(
     backendConfigContext: BackendConfig.Context,
@@ -37,11 +42,18 @@ class BackendStateService(
     }
 
     val scope = CoroutineScope(Dispatchers.Default + SupervisorJob() + CoroutineName("BackendStateService"))
-    private val defaultOtfState = if (otfService == null) BackendState.OtfState.DISABLED
-    else BackendState.OtfState.ENABLED
-    val state: StateFlow<BackendState>
+    private val defaultOtfState = if (otfService == null) OtfState.DISABLED
+    else OtfState.ENABLED
+
+    val backendMessageFlow: SharedFlow<BackendMessage>
+        field = MutableSharedFlow(
+            extraBufferCapacity = 16,
+            onBufferOverflow = BufferOverflow.DROP_OLDEST,
+        )
+
+    val state: StateFlow<BackendMessage.State>
         field = MutableStateFlow(
-            BackendState(
+            BackendMessage.State(
                 currentVersion = BuildInfo.VERSION,
                 otfState = defaultOtfState,
             )
@@ -64,32 +76,26 @@ class BackendStateService(
                 updatePositions()
             }
         }
+
+        scope.launch {
+            reloadShellys()
+        }
+
+        // heartbeat, keeps /api/state connections alive so stale ones are noticed and reconnected
+        scope.launch {
+            while (true) {
+                delay(15.seconds)
+                backendMessageFlow.emit(BackendMessage.Heartbeat)
+            }
+        }
     }
 
     suspend fun onIntent(intent: BackendIntent): Any = when (intent) {
-        BackendIntent.StartSearchShellysInSubnet -> reloadShellys(silent = true)
-        is BackendIntent.ClearError -> {
-            state.update {
-                if (it.latestBackendError?.first == intent.id)
-                    it.copy(latestBackendError = null)
-                else it
-            }
-        }
-
-        BackendIntent.OTFSearchLatestVersion -> {
-            state.update { it.copy(otfState = BackendState.OtfState.SEARCHING) }
-            val version = otfService?.searchLatestVersion()
-            state.update {
-                it.copy(
-                    latestVersion = version,
-                    otfState = defaultOtfState,
-                )
-            }
-        }
-
+        BackendIntent.StartSearchShellysInSubnet -> reloadShellys()
+        BackendIntent.OTFSearchLatestVersion -> otfSearchLatestVersion()
         BackendIntent.OTFRun -> {
             val version = state.value.latestVersion ?: return Unit
-            state.update { it.copy(otfState = BackendState.OtfState.UPDATING) }
+            state.update { it.copy(otfState = OtfState.UPDATING) }
             otfService?.update(version)
             state.update { it.copy(otfState = defaultOtfState) }
         }
@@ -106,7 +112,7 @@ class BackendStateService(
             is ShellyIntent.Update -> updateShelly(intent.mac, sIntent)
         }
     }.also {
-        log.info("finished onIntent: $intent")
+        log.debug("finished onIntent: $intent")
     }
 
     fun updatePositions(): Boolean {
@@ -125,6 +131,19 @@ class BackendStateService(
             s.copy(shellys = newShellys)
         }
         return true
+    }
+
+    private suspend fun otfSearchLatestVersion() {
+        state.update { it.copy(otfState = OtfState.SEARCHING) }
+        try {
+            val version = otfService?.searchLatestVersion()
+            state.update { it.copy(latestVersion = version) }
+        } catch (_: CancellationException) {
+        } catch (e: Exception) {
+            log.error("error while searching for latest version", e)
+        } finally {
+            state.update { it.copy(otfState = defaultOtfState) }
+        }
     }
 
     private suspend fun moveTo(id: ProfileId) {
@@ -186,49 +205,48 @@ class BackendStateService(
     }
 
     private suspend fun reloadShellys(
-        endpoints: Set<NetworkEndpoint> = getSubnetEndpoints(),
-        silent: Boolean = false,
+        endpoints: Set<NetworkEndpoint>? = null,
     ) {
-        state.update { it.copy(shellySearchState = BackendState.ShellySearchState.Searching) }
-        log.info("searching for shellys (${endpoints.size} endpoints)")
-        val shellysFound = shellyService.findAllShellys(endpoints = endpoints)
-        val newShellyStates = shellysFound.values.associateBy { it.mac }
+        val endpoints = endpoints ?: sweepPort(rootIp = backendConfig.backendIPv4).toSet()
+        state.update { it.copy(isSearchingShellys = true) }
+        backendMessageFlow.emit(BackendMessage.ShellySearching("searching for shellys (${endpoints.size} endpoints)"))
+        try {
+            log.debug("searching for shellys (${endpoints.size} endpoints)")
 
-        val notFound = endpoints - shellysFound.keys
-
-        val errorMsg = if (!silent && notFound.isNotEmpty())
-            Uuid.random() to "Shelly(s) not found: ${notFound.joinToString(", ")}"
-        else null
-
-        state.update { s ->
-            val newShellys = s.shellys.mapValues {
-                it.value.update(newShellyStates[it.key])
-            } + newShellyStates.filterKeys { it !in s.shellys.keys }
-            s.copy(
-                shellys = newShellys,
-                shellySearchState = BackendState.ShellySearchState.Result(
-                    macBefore = s.shellys.keys,
-                    macFound = newShellyStates.keys,
-                ),
-                latestBackendError = errorMsg,
+            var found = 0
+            val newShellyStates = endpoints.mapIndexedNotNull { idx, ip ->
+                val result = shellyService.findShelly(ip)?.let { ip to it }
+                if (result != null) found++
+                val ipsLeft = endpoints.size - idx - 1
+                backendMessageFlow.emit(BackendMessage.ShellySearching("$found Shelly's found, $ipsLeft IP's left"))
+                result
+            }.associate { it.second.mac to it.second }
+            backendMessageFlow.emit(
+                BackendMessage.ShellySearching("${newShellyStates.size} Shelly(s) not found")
             )
+            if (newShellyStates.isNotEmpty())
+                state.update { s ->
+                    val newShellys = s.shellys.mapValues {
+                        it.value.update(newShellyStates[it.key])
+                    } + newShellyStates.filterKeys { it !in s.shellys.keys }
+                    s.copy(
+                        shellys = newShellys,
+                        isSearchingShellys = false,
+                    )
+                }
+            log.info("${newShellyStates.size} shellys updated (searched in ${endpoints.size} IP's)")
+        } catch (_: CancellationException) {
+        } catch (e: Exception) {
+            log.error("reload shellys failed", e)
+        } finally {
+            state.update { it.copy(isSearchingShellys = false) }
         }
-        log.info("${newShellyStates.size} shellys updated")
     }
 
     private fun updateShellyState(mac: Mac, block: (ShellyState) -> ShellyState) = state.update { backendState ->
         val state = backendState.shellys[mac] ?: return@update backendState
         val newState = block(state)
         backendState.copy(shellys = backendState.shellys + (mac to newState))
-    }
-
-    private fun getSubnetEndpoints(): Set<NetworkEndpoint> {
-        val serverIp = backendConfig.backendIPv4
-        return (1..254).map { it.toUByte() }.mapNotNull {
-            val ip = serverIp.copy(d = it)
-            if (ip == serverIp) return@mapNotNull null
-            NetworkEndpoint(host = ip, port = null)
-        }.toSet()
     }
 
     private val Mac.ipOrNull get() = state.value.shellys[this]?.endpoint

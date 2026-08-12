@@ -1,7 +1,6 @@
 package de.quati.shome.model
 
 import kotlinx.serialization.Serializable
-import kotlin.uuid.Uuid
 
 
 @Serializable
@@ -15,9 +14,6 @@ sealed interface BackendIntent {
 
     @Serializable
     data object StartSearchShellysInSubnet : BackendIntent
-
-    @Serializable
-    data class ClearError(val id: Uuid) : BackendIntent
 
     @Serializable
     data class StartSearchShellys(val endpoints: Set<NetworkEndpoint>) : BackendIntent

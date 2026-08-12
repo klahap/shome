@@ -13,6 +13,13 @@ import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
 import kotlin.uuid.Uuid
 
+@Serializable
+enum class OtfState {
+    DISABLED,
+    ENABLED,
+    UPDATING,
+    SEARCHING,
+}
 
 @Serializable
 enum class ShellyRpcMethod {

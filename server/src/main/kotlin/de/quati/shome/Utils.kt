@@ -46,6 +46,8 @@ import kotlin.io.path.name
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
+import java.nio.channels.*
+import kotlin.time.Clock
 
 fun Inet4Address.toHost(): Host.IPv4 {
     val b = address
@@ -151,17 +153,64 @@ suspend fun HttpClient.downloadFile(url: String, output: OutputStream) {
     }
 }
 
-suspend fun logStream(out: OutputStream) = withContext(Dispatchers.IO) {
+suspend fun logStream(
+    out: OutputStream,
+    withZip: Boolean,
+) = withContext(Dispatchers.IO) {
     File("./logs").takeIf { it.exists() }
         ?.listFiles { it.name.startsWith("shome.") }
         ?.filterNotNull()
         ?.sortedBy { it.name }
         ?.forEach { file ->
-            val input = if (file.name.endsWith(".gz"))
+            val input = if (file.name.endsWith(".gz")) {
+                if (!withZip) return@forEach
                 GZIPInputStream(file.inputStream())
-            else
+            } else
                 file.inputStream()
             input.use { it.copyTo(out) }
         }
     Unit
+}
+
+fun sweepPort(
+    rootIp: Host.IPv4,
+    port: Int = 80,
+    timeout: Duration = 2.seconds,
+): List<NetworkEndpoint> {
+    val selector = Selector.open()
+    val channels = (1..254).mapNotNull {
+        val ip = rootIp.copy(d = it.toUByte())
+        if (ip == rootIp) return@mapNotNull null
+        runCatching {
+            SocketChannel.open().apply {
+                configureBlocking(false)
+                register(selector, SelectionKey.OP_CONNECT, ip.toString())
+                connect(java.net.InetSocketAddress(ip.toInetAddress(), port))
+            }
+        }.getOrNull()
+    }
+    val found = mutableListOf<NetworkEndpoint>()
+    val deadline = Clock.System.now() + timeout
+    while (true) {
+        val remaining = deadline - Clock.System.now()
+        if (remaining <= Duration.ZERO) break
+        if (selector.select(remaining.inWholeMilliseconds) == 0) continue
+        val it = selector.selectedKeys().iterator()
+        while (it.hasNext()) runCatching {
+            val key = it.next(); it.remove()
+            val ch = key.channel() as SocketChannel
+            try {
+                if (ch.finishConnect()) {
+                    val ip = key.attachment() as String
+                    found += NetworkEndpoint(Host.parse(ip), port)
+                }
+            } catch (_: Exception) {
+            }
+            runCatching { ch.close() }
+            key.cancel()
+        }
+    }
+    channels.forEach { runCatching { it.close() } }
+    selector.close()
+    return found
 }

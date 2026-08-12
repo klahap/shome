@@ -3,6 +3,7 @@ package de.quati.shome
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Devices
@@ -18,8 +19,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import de.quati.shome.model.BackendIntent
-import de.quati.shome.model.BackendState
+import de.quati.shome.model.BackendMessage
+import de.quati.shome.model.OtfState
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.filterIsInstance
 
 enum class Screen {
     ShellyControl,
@@ -45,8 +48,8 @@ fun App(viewModel: AppViewModel = viewModel { AppViewModel() }) {
         false -> lightColorScheme()
     }
     LaunchedEffect(Unit) {
-        viewModel.errors.collectLatest { error ->
-            snackbarHostState.showSnackbar(error)
+        viewModel.notifications.filterIsInstance<BackendMessage.Error>().collectLatest { error ->
+            snackbarHostState.showSnackbar(error.msg)
         }
     }
     MaterialTheme(
@@ -116,6 +119,7 @@ fun App(viewModel: AppViewModel = viewModel { AppViewModel() }) {
         }
         if (showSearchDialog) {
             ShellySearchDialog(
+                viewModel = viewModel,
                 state = state,
                 onIntent = { viewModel.sendIntent(it) },
                 onDismiss = { showSearchDialog = false },
@@ -132,17 +136,29 @@ fun App(viewModel: AppViewModel = viewModel { AppViewModel() }) {
                             style = MaterialTheme.typography.titleMedium
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        Button(onClick = { viewModel.downloadLogs() }) {
-                            Icon(
-                                Icons.Default.CloudDownload,
-                                contentDescription = null,
-                                modifier = Modifier.size(ButtonDefaults.IconSize)
-                            )
-                            Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                            Text("Download Server Logs")
+                        Row {
+                            Button(onClick = { viewModel.downloadLogs() }) {
+                                Icon(
+                                    Icons.Default.CloudDownload,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(ButtonDefaults.IconSize)
+                                )
+                                Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+                                Text("Download Server Logs")
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Button(onClick = { viewModel.showTodaysLogs() }) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.OpenInNew,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(ButtonDefaults.IconSize)
+                                )
+                                Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+                                Text("Show Today's Logs")
+                            }
                         }
 
-                        if (state.otfState != BackendState.OtfState.DISABLED) {
+                        if (state.otfState != OtfState.DISABLED) {
                             Spacer(modifier = Modifier.height(16.dp))
                             HorizontalDivider()
                             Spacer(modifier = Modifier.height(16.dp))
@@ -168,10 +184,10 @@ fun App(viewModel: AppViewModel = viewModel { AppViewModel() }) {
                                     color = MaterialTheme.colorScheme.error
                                 )
                             }
-                            if (state.otfState == BackendState.OtfState.SEARCHING) {
+                            if (state.otfState == OtfState.SEARCHING) {
                                 CircularProgressIndicator(modifier = Modifier.padding(top = 8.dp))
                             }
-                            if (state.otfState == BackendState.OtfState.UPDATING) {
+                            if (state.otfState == OtfState.UPDATING) {
                                 Text(
                                     "Updating...",
                                     color = MaterialTheme.colorScheme.primary,
@@ -186,7 +202,7 @@ fun App(viewModel: AppViewModel = viewModel { AppViewModel() }) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 TextButton(
                                     onClick = { viewModel.sendIntent(BackendIntent.OTFSearchLatestVersion) },
-                                    enabled = state.otfState == BackendState.OtfState.ENABLED
+                                    enabled = state.otfState == OtfState.ENABLED
                                 ) {
                                     Icon(
                                         Icons.Default.Refresh,
@@ -200,7 +216,7 @@ fun App(viewModel: AppViewModel = viewModel { AppViewModel() }) {
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Button(
                                         onClick = { viewModel.sendIntent(BackendIntent.OTFRun) },
-                                        enabled = state.otfState == BackendState.OtfState.ENABLED
+                                        enabled = state.otfState == OtfState.ENABLED
                                     ) {
                                         Text("Update and Restart")
                                     }

@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import de.quati.shome.model.*
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.milliseconds
@@ -38,7 +40,7 @@ private fun String.isIpv4() = split(".")
 
 @Composable
 fun ShellySection(
-    state: BackendState,
+    state: BackendMessage.State,
     onIntent: (BackendIntent) -> Unit,
 ) {
     LazyVerticalGrid(
@@ -59,14 +61,22 @@ fun ShellySection(
 
 @Composable
 fun ShellySearchDialog(
-    state: BackendState,
+    viewModel: AppViewModel,
+    state: BackendMessage.State,
     onIntent: (BackendIntent) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val searching = state.shellySearchState is BackendState.ShellySearchState.Searching
+    val searching = state.isSearchingShellys
     var searchIp by remember { mutableStateOf("") }
     fun searchByIp() {
         if (searchIp.isNotBlank()) onIntent(BackendIntent.StartSearchShellys(setOf(NetworkEndpoint.parse(searchIp))))
+    }
+
+    var latestMessage by remember { mutableStateOf<BackendMessage.ShellySearching?>(null) }
+    LaunchedEffect(Unit) {
+        viewModel.notifications.filterIsInstance<BackendMessage.ShellySearching>().collectLatest {
+            latestMessage = it
+        }
     }
 
     AlertDialog(
@@ -127,9 +137,16 @@ fun ShellySearchDialog(
                     Text("Search")
                 }
 
+                Spacer(modifier = Modifier.height(16.dp))
                 if (searching) {
-                    Spacer(modifier = Modifier.height(16.dp))
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                latestMessage?.also {
+                    Text(
+                        text = it.msg,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
             }
         },

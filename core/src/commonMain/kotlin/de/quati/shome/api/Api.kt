@@ -13,6 +13,9 @@ class Api {
     @Resource("logs")
     class Logs(val parent: Api = Api())
 
+    @Resource("logs-today")
+    class LogsToday(val parent: Api = Api())
+
     @Resource("intent")
     class Intent(val parent: Api = Api())
 

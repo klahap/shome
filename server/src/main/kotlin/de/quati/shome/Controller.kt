@@ -41,13 +41,24 @@ fun Application.addController(backendStateService: BackendStateService) {
                 ).toString()
             )
             call.respondOutputStream(ContentType.Text.Plain) {
-                logStream(this)
+                logStream(this, withZip = true)
+            }
+        }
+
+        get("/api/logs-today") {
+            call.respondOutputStream(ContentType.Text.Plain) {
+                logStream(this, withZip = false)
             }
         }
 
         get("/api/state") {
+            call.response.header(HttpHeaders.CacheControl, "no-cache, no-transform")
+            call.response.header("X-Accel-Buffering", "no")
             call.respondBytesWriter(contentType = ndJsonContentType) {
-                backendStateService.state.collect { state ->
+                kotlinx.coroutines.flow.merge(
+                    backendStateService.state,
+                    backendStateService.backendMessageFlow,
+                ).collect { state ->
                     val json = Json.encodeToString(state)
                     writeStringUtf8(json + "\n")
                     flush()
@@ -63,7 +74,6 @@ fun Application.addController(backendStateService: BackendStateService) {
                 call.respond(HttpStatusCode.BadRequest)
                 return@post
             }
-            log.info("Received intent: $intent")
             try {
                 backendStateService.onIntent(intent)
             } catch (e: Exception) {
@@ -82,7 +92,7 @@ fun Application.addController(backendStateService: BackendStateService) {
             val event = call.queryParameters[WebhookEventType.QUERY_KEY_EVENT]
                 ?.let(WebhookEventType::parseUrlName)
                 ?: return@get log.warn("Missing event parameter in webhook request form MAC: $mac")
-            log.info("Webhook received form MAC: $mac, Event: $event")
+            log.debug("Webhook received form MAC: $mac, Event: $event")
             val intent = BackendIntent.Shelly(
                 mac = mac,
                 intent = ShellyIntent.WebhookEventReceived(

@@ -22,22 +22,21 @@ import de.quati.shome.model.ShellyRpcResponse
 import io.ktor.client.call.body
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.json.Json
+import org.slf4j.LoggerFactory
 
 
 class ShellyService(
     backendConfigContext: BackendConfig.Context
 ) : BackendConfig.Context by backendConfigContext {
+    companion object {
+        private val log = LoggerFactory.getLogger(ShellyService::class.java)!!
+    }
+
     private val json = Json { ignoreUnknownKeys = true }
     private val httpClient = HttpClient(CIO) {
         install(ContentNegotiation) { json(json) }
-        install(HttpTimeout) {
+        install(HttpTimeout) { // TODO
             connectTimeoutMillis = 5_000
             requestTimeoutMillis = 5_000
         }
@@ -126,7 +125,10 @@ class ShellyService(
     )
 
     suspend fun findShelly(ip: NetworkEndpoint): ShellyState? {
-        val status = getStatus(ip).getOrNull() ?: return null
+        val status = getStatus(ip).getOrElse {
+            log.debug("no shelly at $ip, error: ${it.message}")
+            return null
+        }
         val config = getConfig(ip).getOrNull() ?: return null
         val kvs = getManyKvs(ip).getOrNull() ?: return null
         val webhooks = listWebhooks(ip).getOrNull() ?: return null
@@ -143,17 +145,6 @@ class ShellyService(
             configCover = config.cover0,
         ).tryToValid()
         return info
-    }
-
-    suspend fun findAllShellys(endpoints: Set<NetworkEndpoint>) = coroutineScope {
-        val semaphore = Semaphore(32)
-        endpoints.map { ip ->
-            async(Dispatchers.IO) {
-                semaphore.withPermit {
-                    findShelly(ip)?.let { ip to it }
-                }
-            }
-        }.awaitAll().filterNotNull().toMap()
     }
 
     private suspend inline fun <reified T : ShellyRpcResponse.Params> HttpResponse.parse(): T {

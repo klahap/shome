@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import de.quati.shome.api.Api
 import de.quati.shome.model.BackendIntent
-import de.quati.shome.model.BackendState
+import de.quati.shome.model.BackendMessage
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
@@ -21,23 +21,22 @@ import io.ktor.resources.serialization.ResourcesFormat
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CancellationException
 import io.ktor.utils.io.readLine
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
-import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 expect fun getHost(): String
 expect fun getPort(): Int?
 expect fun openUrl(url: String)
+
+private val STATE_STREAM_TIMEOUT = 40.seconds
 
 class AppViewModel : ViewModel() {
     private val json: Json = Json
@@ -50,40 +49,16 @@ class AppViewModel : ViewModel() {
         }
     }
 
-    val errors: SharedFlow<String>
-        field = MutableSharedFlow(extraBufferCapacity = 64)
-
-    val state = MutableStateFlow(
-        BackendState(
-            otfState = BackendState.OtfState.DISABLED,
+    val notifications: SharedFlow<BackendMessage.Notification>
+        field = MutableSharedFlow(
+            extraBufferCapacity = 16,
+            onBufferOverflow = BufferOverflow.DROP_OLDEST,
         )
-    ).also { stateFlow ->
-        viewModelScope.launch {
-            while (true) {
-                try {
-                    println("fetching state...")
-                    httpClient.prepareGet(Api.State()).execute { response ->
-                        if (!response.status.isSuccess()) {
-                            errors.tryEmit("Connection error: ${response.status}")
-                            return@execute
-                        }
-                        val channel = response.bodyAsChannel()
-                        while (!channel.isClosedForRead) {
-                            val line = channel.readLine() ?: break
-                            stateFlow.value = json.decodeFromString<BackendState>(line)
-                        }
-                    }
-                } catch (e: CancellationException) {
-                    println("cancel")
-                    throw e
-                } catch (t: Throwable) {
-                    errors.tryEmit("Connection error: ${t.message ?: t.toString()}")
-                }
-                println("retrying in 2s...")
-                delay(2000.milliseconds)
-            }
-        }
-    }.asStateFlow()
+
+    val state: StateFlow<BackendMessage.State>
+        field = MutableStateFlow(BackendMessage.State())
+
+    fun error(msg: String) = notifications.tryEmit(BackendMessage.Error(msg))
 
     fun sendIntent(intent: BackendIntent) = viewModelScope.launch {
         val res = try {
@@ -93,24 +68,56 @@ class AppViewModel : ViewModel() {
             }
         } catch (t: Throwable) {
             if (t is CancellationException) throw t
-            errors.tryEmit("Failed to send command: ${t.message ?: t.toString()}")
+            error("Failed to send command: ${t.message ?: t.toString()}")
             return@launch
         }
         if (!res.status.isSuccess())
-            errors.tryEmit("Command failed with status: ${res.status}")
+            error("Command failed with status: ${res.status}")
     }
 
     init {
-        state.map { it.latestBackendError }
-            .distinctUntilChanged()
-            .filterNotNull()
-            .onEach {
-                errors.tryEmit(it.second)
-                sendIntent(BackendIntent.ClearError(it.first))
-            }.launchIn(viewModelScope)
+        viewModelScope.launch {
+            val retryDelay = RetryDelay()
+            while (true) {
+                try {
+                    println("fetching state...")
+                    httpClient.prepareGet(Api.State()).execute { response ->
+                        if (!response.status.isSuccess()) {
+                            error("Connection error: ${response.status}")
+                            return@execute
+                        }
+                        val channel = response.bodyAsChannel()
+                        while (!channel.isClosedForRead) {
+                            val line = try {
+                                withTimeout(STATE_STREAM_TIMEOUT) { channel.readLine() }
+                            } catch (_: TimeoutCancellationException) {
+                                throw Exception("no data received from /api/state in time")
+                            } ?: break
+                            retryDelay.reset()
+                            when (val msg = json.decodeFromString<BackendMessage>(line)) {
+                                is BackendMessage.State -> state.emit(msg)
+                                BackendMessage.Heartbeat -> Unit
+                                is BackendMessage.Notification -> notifications.emit(msg)
+                            }
+                        }
+                    }
+                } catch (e: CancellationException) {
+                    println("cancel")
+                    throw e
+                } catch (t: Throwable) {
+                    error("Connection error: ${t.message ?: t.toString()}")
+                }
+                println("retrying in ${retryDelay.currentDelay}...")
+                retryDelay.wait()
+            }
+        }
     }
 
     fun downloadLogs() {
         openUrl(href(ResourcesFormat(), Api.Logs()))
+    }
+
+    fun showTodaysLogs() {
+        openUrl(href(ResourcesFormat(), Api.LogsToday()))
     }
 }
