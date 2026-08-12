@@ -113,11 +113,13 @@ class AppViewModel : ViewModel() {
         }
     }
 
-    fun downloadLogs() {
-        openUrl(href(ResourcesFormat(), Api.Logs()))
-    }
+    companion object {
+        fun downloadLogs() {
+            openUrl(href(ResourcesFormat(), Api.Logs()))
+        }
 
-    fun showTodaysLogs() {
-        openUrl(href(ResourcesFormat(), Api.LogsToday()))
+        fun showTodaysLogs() {
+            openUrl(href(ResourcesFormat(), Api.LogsToday()))
+        }
     }
 }
